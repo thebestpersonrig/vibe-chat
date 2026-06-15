@@ -9,6 +9,7 @@ import Sidebar from "@/components/Sidebar";
 import MessageComponent from "@/components/Message";
 import TypingIndicator from "@/components/TypingIndicator";
 import OnlineUsers from "@/components/OnlineUsers";
+import MentionInput from "@/components/MentionInput";
 import { motion } from "framer-motion";
 
 export default function ChatPage() {
@@ -32,6 +33,10 @@ export default function ChatPage() {
       return;
     }
     setUser(JSON.parse(saved));
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
   }, [router]);
 
   useEffect(() => {
@@ -67,6 +72,20 @@ export default function ChatPage() {
         const msg = payload.new as MessageType;
         msg.reactions = [];
         setMessages((prev) => [...prev, msg]);
+
+        if (msg.username !== user.username && "Notification" in window && Notification.permission === "granted") {
+          const isMentioned = msg.content.toLowerCase().includes(`@${user.username.toLowerCase()}`);
+          if (document.hidden || isMentioned) {
+            new Notification(
+              isMentioned ? `${msg.username} mentioned you` : `${msg.username} in #${activeRoom.name}`,
+              {
+                body: msg.content,
+                icon: `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>`,
+                tag: msg.id,
+              }
+            );
+          }
+        }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reactions" }, (payload) => {
         const reaction = payload.new as Reaction;
@@ -278,15 +297,17 @@ export default function ChatPage() {
                 {/* Message input */}
                 <form onSubmit={sendMessage} className="p-4 border-t border-border">
                   <div className="flex gap-3">
-                    <input
-                      type="text"
+                    <MentionInput
                       value={newMessage}
-                      onChange={(e) => {
-                        setNewMessage(e.target.value);
-                        handleTyping();
+                      onChange={setNewMessage}
+                      onSubmit={() => {
+                        const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                        sendMessage(fakeEvent);
                       }}
-                      placeholder={`Message #${activeRoom.name}...`}
-                      className="flex-1 bg-surface border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/30 transition-all"
+                      onTyping={handleTyping}
+                      placeholder={`Message #${activeRoom.name}... (type @ to mention)`}
+                      onlineUsers={onlineUsers}
+                      currentUser={user.username}
                     />
                     <motion.button
                       type="submit"

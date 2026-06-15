@@ -37,6 +37,29 @@ function groupReactions(reactions: Reaction[]): { emoji: string; users: string[]
   }));
 }
 
+function renderContent(content: string, currentUser: string) {
+  const parts = content.split(/(@\w+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("@")) {
+      const mentioned = part.slice(1);
+      const isSelf = mentioned.toLowerCase() === currentUser.toLowerCase();
+      return (
+        <span
+          key={i}
+          className={`font-semibold rounded px-0.5 ${
+            isSelf
+              ? "bg-accent/25 text-accent"
+              : "text-blue hover:underline cursor-default"
+          }`}
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
 export default function Message({ message, isOwn, username }: MessageProps) {
   const [showReactions, setShowReactions] = useState(false);
   const grouped = groupReactions(message.reactions || []);
@@ -85,7 +108,7 @@ export default function Message({ message, isOwn, username }: MessageProps) {
           <span className="text-[10px] text-muted/50">{timeAgo(message.created_at)}</span>
         </div>
         <p className="text-sm text-foreground/90 break-words leading-relaxed">
-          {message.content}
+          {renderContent(message.content, username)}
         </p>
 
         {/* Reactions */}
