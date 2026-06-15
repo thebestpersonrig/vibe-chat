@@ -47,6 +47,7 @@ create policy "Anyone can create rooms" on rooms for insert with check (true);
 
 create policy "Anyone can read messages" on messages for select using (true);
 create policy "Anyone can send messages" on messages for insert with check (true);
+create policy "Anyone can delete messages" on messages for delete using (true);
 
 create policy "Anyone can read reactions" on reactions for select using (true);
 create policy "Anyone can add reactions" on reactions for insert with check (true);
