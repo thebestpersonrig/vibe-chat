@@ -28,19 +28,19 @@ export interface UserPresence {
   online_at: string;
 }
 
-export interface TenorGif {
-  id: string;
-  title: string;
-  media_formats: {
-    gif: { url: string };
-    tinygif: { url: string };
-    mediumgif: { url: string };
-  };
-}
-
 export const AVATAR_COLORS = [
-  "#8B5CF6", "#EC4899", "#3B82F6", "#10B981", "#F59E0B", "#EF4444",
-  "#06B6D4", "#F97316", "#A855F7", "#14B8A6", "#E879F9", "#6366F1",
+  "#8B5CF6",
+  "#EC4899",
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#06B6D4",
+  "#F97316",
+  "#A855F7",
+  "#14B8A6",
+  "#E879F9",
+  "#6366F1",
 ];
 
 export const ROOM_EMOJIS = [
@@ -49,33 +49,3 @@ export const ROOM_EMOJIS = [
 ];
 
 export const REACTION_EMOJIS = ["❤️", "😂", "🔥", "👍", "😮", "🎉", "💯", "👀"];
-
-export function detectMedia(content: string): {
-  type: "image" | "gif" | "youtube" | "video" | null;
-  url: string;
-  text: string;
-} {
-  const trimmed = content.trim();
-
-  if (/^https?:\/\/.+\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed)) {
-    return { type: "image", url: trimmed, text: "" };
-  }
-
-  if (/^https?:\/\/.+\.gif(\?.*)?$/i.test(trimmed) || /^https?:\/\/media\.tenor\.com\//i.test(trimmed)) {
-    return { type: "gif", url: trimmed, text: "" };
-  }
-
-  if (/^https?:\/\/.+\.(mp4|webm|mov)(\?.*)?$/i.test(trimmed)) {
-    return { type: "video", url: trimmed, text: "" };
-  }
-
-  const ytMatch = trimmed.match(
-    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-  );
-  if (ytMatch) {
-    const remaining = trimmed.replace(ytMatch[0], "").trim();
-    return { type: "youtube", url: ytMatch[1], text: remaining };
-  }
-
-  return { type: null, url: "", text: trimmed };
-}
