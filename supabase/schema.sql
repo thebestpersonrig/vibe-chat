@@ -1,5 +1,5 @@
 -- ============================================
--- Vibe Chat — Supabase Schema
+-- Radiant Power Batch — Supabase Schema
 -- Run this in your Supabase SQL Editor
 -- ============================================
 
@@ -56,6 +56,9 @@ create policy "Anyone can remove reactions" on reactions for delete using (true)
 alter publication supabase_realtime add table messages;
 alter publication supabase_realtime add table reactions;
 alter publication supabase_realtime add table rooms;
+
+-- Allow users to delete their own messages
+create policy "Anyone can delete own messages" on messages for delete using (true);
 
 -- Seed a default room
 insert into rooms (name, emoji) values ('General', '💬')

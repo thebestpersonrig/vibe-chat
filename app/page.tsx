@@ -11,7 +11,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const saved = localStorage.getItem("vibe-chat-user");
+    const saved = localStorage.getItem("rpb-user");
     if (saved) {
       router.push("/chat");
     }
@@ -31,7 +31,7 @@ export default function Home() {
 
     const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
     localStorage.setItem(
-      "vibe-chat-user",
+      "rpb-user",
       JSON.stringify({ username: trimmed, avatarColor: color })
     );
     router.push("/chat");
@@ -75,8 +75,8 @@ export default function Home() {
           >
             💬
           </motion.div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Vibe Chat</h1>
-          <p className="text-muted text-sm">Real-time group chat with vibes</p>
+          <h1 className="text-4xl font-bold gradient-text mb-2">Radiant Power Batch</h1>
+          <p className="text-muted text-sm">Real-time group chat, supercharged</p>
         </div>
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 glow">
