@@ -248,7 +248,7 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
+      <div className="h-dvh flex items-center justify-center bg-background">
         <div className="aurora-bg" />
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3">
           <motion.span className="text-4xl" animate={{ rotate: [0, 360] }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>⚡</motion.span>
@@ -260,7 +260,7 @@ export default function ChatPage() {
 
   if (!username) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background p-4">
+      <div className="h-dvh flex items-center justify-center bg-background p-4">
         <div className="aurora-bg" />
         <div className="noise-overlay" />
         <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="glass-strong rounded-2xl p-8 w-full max-w-sm glow-strong gradient-border relative z-10">
@@ -281,7 +281,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden relative">
+    <div className="h-dvh flex bg-background overflow-hidden relative">
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
@@ -378,9 +378,10 @@ export default function ChatPage() {
                       disabled={!newMessage.trim()}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="bg-gradient-to-r from-accent to-pink hover:opacity-90 disabled:opacity-30 text-white px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow"
+                      className="bg-gradient-to-r from-accent to-pink hover:opacity-90 disabled:opacity-30 text-white px-3 md:px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow"
                     >
-                      <span className="text-sm font-semibold">Send</span>
+                      <span className="text-sm font-semibold hidden sm:inline">Send</span>
+                      <span className="text-sm sm:hidden">→</span>
                     </motion.button>
                   </div>
                 </div>
