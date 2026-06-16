@@ -76,6 +76,7 @@ export default function Home() {
       localStorage.setItem("rpb-user", JSON.stringify({
         username: existing.username,
         avatarColor: existing.avatar_color,
+        avatarUrl: existing.avatar_url,
       }));
       router.push("/chat");
       return;
@@ -96,7 +97,7 @@ export default function Home() {
       return;
     }
 
-    localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color }));
+    localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color, avatarUrl: null }));
     router.push("/chat");
   }
 

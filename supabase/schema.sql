@@ -8,6 +8,7 @@ create table if not exists users (
   id uuid default gen_random_uuid() primary key,
   username text unique not null,
   avatar_color text not null,
+  avatar_url text,
   created_at timestamptz default now()
 );
 
@@ -25,6 +26,7 @@ create table if not exists messages (
   room_id uuid references rooms(id) on delete cascade not null,
   username text not null,
   avatar_color text not null default '#8B5CF6',
+  avatar_url text,
   content text not null,
   created_at timestamptz default now()
 );
@@ -53,6 +55,7 @@ alter table reactions enable row level security;
 -- Policies
 create policy "Anyone can read users" on users for select using (true);
 create policy "Anyone can create users" on users for insert with check (true);
+create policy "Anyone can update own avatar" on users for update using (true) with check (true);
 
 create policy "Anyone can read rooms" on rooms for select using (true);
 create policy "Anyone can create rooms" on rooms for insert with check (true);

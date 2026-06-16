@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { UserPresence } from "@/lib/types";
+import Avatar from "@/components/Avatar";
 
 interface OnlineUsersProps {
   users: UserPresence[];
@@ -29,15 +30,7 @@ export default function OnlineUsers({ users }: OnlineUsersProps) {
               transition={{ delay: i * 0.05 }}
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-surface-hover/40 transition-all group"
             >
-              <div className="relative">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-transparent group-hover:ring-accent/20 transition-all"
-                  style={{ backgroundColor: user.avatar_color }}
-                >
-                  {user.username[0].toUpperCase()}
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald rounded-full border-2 border-surface online-pulse" />
-              </div>
+              <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" showStatus />
               <span className="text-xs text-foreground/70 group-hover:text-foreground truncate transition-colors">{user.username}</span>
             </motion.div>
           ))}

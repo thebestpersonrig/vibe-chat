@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia } from "@/lib/types";
+import Avatar from "@/components/Avatar";
 
 interface MessageProps {
   message: MessageType;
@@ -98,9 +99,7 @@ export default function Message({ message, isOwn, username, isGrouped }: Message
       className={`group flex gap-3 px-4 md:px-5 rounded-lg mx-1 transition-all duration-200 ${isGrouped ? "py-0.5 pl-[4.5rem] md:pl-[4.75rem]" : "py-1.5 mt-1"} hover:bg-gradient-to-r hover:from-surface-hover/40 hover:to-transparent`}
     >
       {!isGrouped && (
-        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5 ring-2 ring-white/5 hover:ring-accent/20 transition-all" style={{ backgroundColor: message.avatar_color }}>
-          {message.username[0].toUpperCase()}
-        </div>
+        <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
       )}
       <div className="flex-1 min-w-0">
         {!isGrouped && (

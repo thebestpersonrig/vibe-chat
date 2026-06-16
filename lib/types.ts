@@ -10,6 +10,7 @@ export interface Message {
   room_id: string;
   username: string;
   avatar_color: string;
+  avatar_url?: string | null;
   content: string;
   created_at: string;
   reactions?: Reaction[];
@@ -26,12 +27,14 @@ export interface User {
   id: string;
   username: string;
   avatar_color: string;
+  avatar_url?: string | null;
   created_at: string;
 }
 
 export interface UserPresence {
   username: string;
   avatar_color: string;
+  avatar_url?: string | null;
   online_at: string;
 }
 

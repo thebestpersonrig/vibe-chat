@@ -15,6 +15,7 @@ import GifPicker from "@/components/GifPicker";
 export default function ChatPage() {
   const [username, setUsername] = useState("");
   const [avatarColor, setAvatarColor] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<MessageType[]>([]);
@@ -46,6 +47,7 @@ export default function ChatPage() {
       const parsed = JSON.parse(stored);
       setUsername(parsed.username);
       setAvatarColor(parsed.avatarColor);
+      setAvatarUrl(parsed.avatarUrl || null);
     }
     setLoading(false);
   }, []);
@@ -148,7 +150,7 @@ export default function ChatPage() {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ username, avatar_color: avatarColor, online_at: new Date().toISOString() });
+          await channel.track({ username, avatar_color: avatarColor, avatar_url: avatarUrl, online_at: new Date().toISOString() });
         }
       });
 
@@ -198,6 +200,7 @@ export default function ChatPage() {
       room_id: activeRoom.id,
       username,
       avatar_color: avatarColor,
+      avatar_url: avatarUrl,
       content,
       created_at: new Date().toISOString(),
       reactions: [],
@@ -206,7 +209,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content })
       .select()
       .single();
 
@@ -226,6 +229,7 @@ export default function ChatPage() {
       room_id: activeRoom.id,
       username,
       avatar_color: avatarColor,
+      avatar_url: avatarUrl,
       content: url,
       created_at: new Date().toISOString(),
       reactions: [],
@@ -234,7 +238,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content: url })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: url })
       .select()
       .single();
 
@@ -285,9 +289,10 @@ export default function ChatPage() {
       .single();
 
     if (existing) {
-      localStorage.setItem("rpb-user", JSON.stringify({ username: existing.username, avatarColor: existing.avatar_color }));
+      localStorage.setItem("rpb-user", JSON.stringify({ username: existing.username, avatarColor: existing.avatar_color, avatarUrl: existing.avatar_url }));
       setUsername(existing.username);
       setAvatarColor(existing.avatar_color);
+      setAvatarUrl(existing.avatar_url || null);
       setLoginChecking(false);
       return;
     }
@@ -301,9 +306,10 @@ export default function ChatPage() {
       return;
     }
 
-    localStorage.setItem("rpb-user", JSON.stringify({ username: name, avatarColor: color }));
+    localStorage.setItem("rpb-user", JSON.stringify({ username: name, avatarColor: color, avatarUrl: null }));
     setUsername(name);
     setAvatarColor(color);
+    setAvatarUrl(null);
     setLoginChecking(false);
   }
 
@@ -311,9 +317,16 @@ export default function ChatPage() {
     localStorage.removeItem("rpb-user");
     setUsername("");
     setAvatarColor("");
+    setAvatarUrl(null);
     setActiveRoom(null);
     setMessages([]);
     hasSetInitialRoom.current = false;
+  }
+
+  function handleAvatarChange(url: string) {
+    setAvatarUrl(url);
+    const stored = JSON.parse(localStorage.getItem("rpb-user") || "{}");
+    localStorage.setItem("rpb-user", JSON.stringify({ ...stored, avatarUrl: url }));
   }
 
   function handleSelectRoom(room: Room) {
@@ -367,7 +380,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} onLogout={handleLogout} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} onLogout={handleLogout} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         <div className="glass-strong px-4 py-3 flex items-center justify-between shrink-0 relative">

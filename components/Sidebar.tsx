@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, ROOM_EMOJIS } from "@/lib/types";
+import Avatar from "@/components/Avatar";
 
 interface SidebarProps {
   rooms: Room[];
@@ -11,17 +12,21 @@ interface SidebarProps {
   onSelectRoom: (room: Room) => void;
   username: string;
   avatarColor: string;
+  avatarUrl: string | null;
+  onAvatarChange: (url: string) => void;
   onLogout: () => void;
   unreadCounts: Record<string, number>;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, onLogout, unreadCounts, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, onAvatarChange, onLogout, unreadCounts, isOpen, onClose }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("💬");
   const [creating, setCreating] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   async function handleCreateRoom(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +36,19 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
     const { data, error } = await supabase.from("rooms").insert({ name: trimmed, emoji: selectedEmoji }).select().single();
     if (!error && data) { onSelectRoom(data); setNewRoomName(""); setShowCreate(false); onClose(); }
     setCreating(false);
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    const url = await uploadImage(file);
+    if (url) {
+      await supabase.from("users").update({ avatar_url: url }).eq("username", username);
+      onAvatarChange(url);
+    }
+    setUploadingAvatar(false);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
   }
 
   function handleRoomClick(room: Room) { onSelectRoom(room); onClose(); }
@@ -109,11 +127,14 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
         </div>
 
         <div className="p-3 border-t border-border">
+          <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
           <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-hover/30 transition-all">
-            <div className="relative">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold avatar-ring" style={{ backgroundColor: avatarColor }}>{username[0].toUpperCase()}</div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald rounded-full border-2 border-surface online-pulse" />
-            </div>
+            <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="cursor-pointer group relative" title="Change avatar">
+              <Avatar username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} size="md" showStatus />
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <span className="text-white text-[10px]">{uploadingAvatar ? "..." : "📷"}</span>
+              </div>
+            </button>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium truncate block">{username}</span>
               <span className="text-[10px] text-emerald">Online</span>
