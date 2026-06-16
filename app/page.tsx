@@ -46,6 +46,7 @@ export default function Home() {
   const [step, setStep] = useState<"username" | "password">("username");
   const [isNewUser, setIsNewUser] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -105,7 +106,8 @@ export default function Home() {
           setError("Username just got taken — try another");
           setStep("username");
         } else {
-          setError("Something went wrong, try again");
+          console.error("Signup error:", insertErr);
+          setError(insertErr.message);
         }
         setChecking(false);
         return;
@@ -245,10 +247,10 @@ export default function Home() {
                 {isNewUser ? "Create a password" : "Enter your password"}
               </label>
               <p className="text-muted/40 text-[11px] mb-3">for &quot;{username.trim()}&quot;</p>
-              <div className="input-glow rounded-xl transition-all">
+              <div className="input-glow rounded-xl transition-all relative">
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -257,15 +259,16 @@ export default function Home() {
                   placeholder={isNewUser ? "Create a password..." : "Enter your password..."}
                   autoFocus
                   disabled={checking}
-                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
+                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 pr-12 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
                 />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors cursor-pointer text-sm">{showPassword ? "🙈" : "👁"}</button>
               </div>
               <p className="text-muted/40 text-[11px] mt-1.5">{isNewUser ? "Min 4 characters — remember this!" : "Same browser? You stay logged in"}</p>
               {error && (
                 <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-pink text-sm mt-2">{error}</motion.p>
               )}
               <div className="flex gap-2 mt-5">
-                <button type="button" onClick={() => { setStep("username"); setError(""); setPassword(""); }} className="px-5 py-3.5 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
+                <button type="button" onClick={() => { setStep("username"); setError(""); setPassword(""); setShowPassword(false); }} className="px-5 py-3.5 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
                 <motion.button
                   type="submit"
                   disabled={checking || password.length < 4}

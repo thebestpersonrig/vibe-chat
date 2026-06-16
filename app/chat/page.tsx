@@ -35,6 +35,7 @@ export default function ChatPage() {
   const [loginStep, setLoginStep] = useState<"username" | "password">("username");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginIsNew, setLoginIsNew] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -333,7 +334,8 @@ export default function ChatPage() {
       const { error: insertErr } = await supabase.from("users").insert({ username: loginUsername, avatar_color: color, password_hash: hashed });
 
       if (insertErr) {
-        setLoginError(insertErr.code === "23505" ? "Username just got taken" : "Something went wrong");
+        console.error("Signup error:", insertErr);
+        setLoginError(insertErr.code === "23505" ? "Username just got taken" : insertErr.message);
         setLoginChecking(false);
         return;
       }
@@ -435,14 +437,15 @@ export default function ChatPage() {
           ) : (
             <form onSubmit={handleLoginStep2} className="space-y-4">
               <div>
-                <div className="input-glow rounded-xl transition-all">
-                  <input name="password" type="password" placeholder={loginIsNew ? "Create a password..." : "Enter your password..."} autoFocus required minLength={4} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+                <div className="input-glow rounded-xl transition-all relative">
+                  <input name="password" type={showPassword ? "text" : "password"} placeholder={loginIsNew ? "Create a password..." : "Enter your password..."} autoFocus required minLength={4} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 pr-12 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors cursor-pointer text-sm">{showPassword ? "🙈" : "👁"}</button>
                 </div>
                 <p className="text-muted/40 text-[11px] mt-1.5">{loginIsNew ? "Min 4 characters — remember this!" : "Same browser? You stay logged in"}</p>
               </div>
               {loginError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-pink text-sm">{loginError}</motion.p>}
               <div className="flex gap-2">
-                <button type="button" onClick={() => { setLoginStep("username"); setLoginError(""); }} className="px-4 py-3 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
+                <button type="button" onClick={() => { setLoginStep("username"); setLoginError(""); setShowPassword(false); }} className="px-4 py-3 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
                 <motion.button type="submit" disabled={loginChecking} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="flex-1 bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50">
                   {loginChecking ? "Checking..." : loginIsNew ? "Create Account" : "Log In"}
                 </motion.button>
