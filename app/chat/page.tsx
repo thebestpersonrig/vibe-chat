@@ -27,6 +27,8 @@ export default function ChatPage() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loginChecking, setLoginChecking] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -101,20 +103,19 @@ export default function ChatPage() {
     channel
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `room_id=eq.${activeRoom.id}` }, (payload) => {
         const newMsg = { ...payload.new as MessageType, reactions: [] };
+        if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
-        if (newMsg.username !== username) {
-          if (newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`)) {
-            playMentionSound();
-            if (Notification.permission === "granted") {
-              new Notification(`${newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
-            }
-          } else {
-            playMessageSound();
+        if (newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`)) {
+          playMentionSound();
+          if (Notification.permission === "granted") {
+            new Notification(`${newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
           }
+        } else {
+          playMessageSound();
         }
         if (isNearBottomRef.current) {
           setTimeout(() => scrollToBottom(), 50);
-        } else if (newMsg.username !== username) {
+        } else {
           setNewMsgCount((c) => c + 1);
         }
       })
@@ -160,12 +161,14 @@ export default function ChatPage() {
   }, [activeRoom?.id, username]);
 
   async function loadMessages(roomId: string) {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: msgs } = await supabase
       .from("messages")
       .select("*, reactions(*)")
       .eq("room_id", roomId)
+      .gte("created_at", cutoff)
       .order("created_at", { ascending: true })
-      .limit(100);
+      .limit(200);
     if (msgs) {
       setMessages(msgs);
       setTimeout(() => scrollToBottom(), 100);
@@ -188,12 +191,58 @@ export default function ChatPage() {
     const content = newMessage.trim();
     if (!content || !activeRoom) return;
     setNewMessage("");
-    await supabase.from("messages").insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content });
+
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: tempId,
+      room_id: activeRoom.id,
+      username,
+      avatar_color: avatarColor,
+      content,
+      created_at: new Date().toISOString(),
+      reactions: [],
+    }]);
+    if (isNearBottomRef.current) setTimeout(() => scrollToBottom(), 20);
+
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content })
+      .select()
+      .single();
+
+    if (data) {
+      setMessages((prev) => prev.map((m) => m.id === tempId ? { ...data, reactions: [] } : m));
+    } else if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
   }
 
   async function sendMediaMessage(url: string) {
     if (!activeRoom) return;
-    await supabase.from("messages").insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content: url });
+
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: tempId,
+      room_id: activeRoom.id,
+      username,
+      avatar_color: avatarColor,
+      content: url,
+      created_at: new Date().toISOString(),
+      reactions: [],
+    }]);
+    if (isNearBottomRef.current) setTimeout(() => scrollToBottom(), 20);
+
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, content: url })
+      .select()
+      .single();
+
+    if (data) {
+      setMessages((prev) => prev.map((m) => m.id === tempId ? { ...data, reactions: [] } : m));
+    } else if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -220,15 +269,42 @@ export default function ChatPage() {
     return new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime() < 120000;
   }
 
-  function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = (form.get("username") as string).trim();
-    if (!name) return;
+    if (!name || name.length < 2) return;
+
+    setLoginChecking(true);
+    setLoginError("");
+
+    const { data: existing } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", name)
+      .single();
+
+    if (existing) {
+      localStorage.setItem("rpb-user", JSON.stringify({ username: existing.username, avatarColor: existing.avatar_color }));
+      setUsername(existing.username);
+      setAvatarColor(existing.avatar_color);
+      setLoginChecking(false);
+      return;
+    }
+
     const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+    const { error: insertErr } = await supabase.from("users").insert({ username: name, avatar_color: color });
+
+    if (insertErr) {
+      setLoginError(insertErr.code === "23505" ? "Username just got taken" : "Something went wrong");
+      setLoginChecking(false);
+      return;
+    }
+
     localStorage.setItem("rpb-user", JSON.stringify({ username: name, avatarColor: color }));
     setUsername(name);
     setAvatarColor(color);
+    setLoginChecking(false);
   }
 
   function handleLogout() {
@@ -270,10 +346,16 @@ export default function ChatPage() {
             <p className="text-muted text-sm mt-1">Pick a username to start chatting</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="input-glow rounded-xl transition-all">
-              <input name="username" type="text" placeholder="Your username..." maxLength={20} autoFocus required className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all" />
+            <div>
+              <div className="input-glow rounded-xl transition-all">
+                <input name="username" type="text" placeholder="Your username..." maxLength={20} autoFocus required minLength={2} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+              </div>
+              <p className="text-muted/40 text-[11px] mt-1.5">Existing name? You&apos;ll log back in</p>
             </div>
-            <motion.button type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden">Join Chat →</motion.button>
+            {loginError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-pink text-sm">{loginError}</motion.p>}
+            <motion.button type="submit" disabled={loginChecking} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50">
+              {loginChecking ? "Checking..." : "Join Chat →"}
+            </motion.button>
           </form>
         </motion.div>
       </div>
@@ -312,6 +394,9 @@ export default function ChatPage() {
               </motion.div>
             )}
           </div>
+          {activeRoom && (
+            <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
+          )}
         </div>
 
         <div className="flex flex-1 overflow-hidden">

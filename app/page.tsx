@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabase";
 import { AVATAR_COLORS } from "@/lib/types";
 
 function Particles() {
@@ -40,6 +41,7 @@ function Particles() {
 export default function Home() {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function Home() {
     }
   }, [router]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = username.trim();
     if (trimmed.length < 2) {
@@ -61,11 +63,40 @@ export default function Home() {
       return;
     }
 
+    setChecking(true);
+    setError("");
+
+    const { data: existing } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", trimmed)
+      .single();
+
+    if (existing) {
+      localStorage.setItem("rpb-user", JSON.stringify({
+        username: existing.username,
+        avatarColor: existing.avatar_color,
+      }));
+      router.push("/chat");
+      return;
+    }
+
     const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-    localStorage.setItem(
-      "rpb-user",
-      JSON.stringify({ username: trimmed, avatarColor: color })
-    );
+    const { error: insertErr } = await supabase
+      .from("users")
+      .insert({ username: trimmed, avatar_color: color });
+
+    if (insertErr) {
+      if (insertErr.code === "23505") {
+        setError("Username just got taken — try another");
+      } else {
+        setError("Something went wrong, try again");
+      }
+      setChecking(false);
+      return;
+    }
+
+    localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color }));
     router.push("/chat");
   }
 
@@ -136,7 +167,7 @@ export default function Home() {
           transition={{ delay: 0.3, duration: 0.6 }}
         >
           <label htmlFor="username" className="block text-sm font-medium text-muted mb-3">
-            What should we call you?
+            Pick a username
           </label>
           <div className="input-glow rounded-xl transition-all">
             <input
@@ -150,9 +181,11 @@ export default function Home() {
               placeholder="Enter your name..."
               autoFocus
               maxLength={20}
-              className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base"
+              disabled={checking}
+              className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
             />
           </div>
+          <p className="text-muted/40 text-[11px] mt-1.5">If this name exists, you&apos;ll log in as that user</p>
           {error && (
             <motion.p
               initial={{ opacity: 0, y: -5 }}
@@ -164,11 +197,12 @@ export default function Home() {
           )}
           <motion.button
             type="submit"
+            disabled={checking || username.trim().length < 2}
             whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(139,92,246,0.3)" }}
             whileTap={{ scale: 0.97 }}
-            className="w-full mt-5 bg-gradient-to-r from-accent via-pink to-blue text-white font-semibold py-3.5 rounded-xl transition-all cursor-pointer btn-shimmer relative overflow-hidden"
+            className="w-full mt-5 bg-gradient-to-r from-accent via-pink to-blue text-white font-semibold py-3.5 rounded-xl transition-all cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50"
           >
-            Start Chatting →
+            {checking ? "Checking..." : "Start Chatting →"}
           </motion.button>
         </motion.form>
 
@@ -178,7 +212,7 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
         >
-          No account needed — just pick a name and go
+          No passwords — your username is your identity
         </motion.p>
       </motion.div>
     </div>
