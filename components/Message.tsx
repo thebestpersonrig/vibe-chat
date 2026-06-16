@@ -96,9 +96,11 @@ export default function Message({ message, isOwn, username, isGrouped }: Message
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-lg mx-1 transition-all duration-200 ${isGrouped ? "py-0.5 pl-[4.5rem] md:pl-[4.75rem]" : "py-1.5 mt-1"} hover:bg-gradient-to-r hover:from-surface-hover/40 hover:to-transparent`}
+      className={`group flex gap-3 px-4 md:px-5 rounded-lg mx-1 transition-all duration-200 ${isGrouped ? "py-0.5" : "py-1.5 mt-1"} hover:bg-gradient-to-r hover:from-surface-hover/40 hover:to-transparent`}
     >
-      {!isGrouped && (
+      {isGrouped ? (
+        <div className="w-9 shrink-0" />
+      ) : (
         <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
       )}
       <div className="flex-1 min-w-0">
