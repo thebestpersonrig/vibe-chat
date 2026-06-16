@@ -28,13 +28,13 @@ export interface UserPresence {
   online_at: string;
 }
 
-export interface TenorGif {
+export interface GiphyGif {
   id: string;
   title: string;
-  media_formats: {
-    gif: { url: string };
-    tinygif: { url: string };
-    mediumgif: { url: string };
+  images: {
+    fixed_height_small: { url: string };
+    fixed_height: { url: string };
+    original: { url: string };
   };
 }
 
@@ -58,7 +58,7 @@ export function detectMedia(content: string): {
   const trimmed = content.trim();
   if (/^https?:\/\/.+\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed))
     return { type: "image", url: trimmed, text: "" };
-  if (/^https?:\/\/.+\.gif(\?.*)?$/i.test(trimmed) || /^https?:\/\/media\.tenor\.com\//i.test(trimmed))
+  if (/^https?:\/\/.+\.gif(\?.*)?$/i.test(trimmed) || /^https?:\/\/media\d*\.giphy\.com\//i.test(trimmed))
     return { type: "gif", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.(mp4|webm|mov)(\?.*)?$/i.test(trimmed))
     return { type: "video", url: trimmed, text: "" };
