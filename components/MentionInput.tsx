@@ -103,54 +103,57 @@ export default function MentionInput({
       <AnimatePresence>
         {showMentions && filteredUsers.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 5 }}
-            className="absolute bottom-full mb-2 left-0 w-64 glass rounded-xl overflow-hidden z-20 shadow-xl"
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            className="absolute bottom-full mb-2 left-0 w-64 glass-strong rounded-2xl overflow-hidden z-20 glow"
           >
             <div className="px-3 py-2 border-b border-border">
-              <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-muted/50 uppercase tracking-[0.15em]">
                 Mention someone
               </span>
             </div>
             <div className="max-h-48 overflow-y-auto py-1">
               {filteredUsers.map((user, i) => (
-                <button
+                <motion.button
                   key={user.username}
                   onClick={() => insertMention(user.username)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors cursor-pointer ${
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all cursor-pointer ${
                     i === selectedIndex
-                      ? "bg-accent/15 text-foreground"
-                      : "text-foreground/80 hover:bg-surface-hover"
+                      ? "bg-gradient-to-r from-accent/15 to-transparent text-foreground"
+                      : "text-foreground/70 hover:bg-surface-hover/50"
                   }`}
                 >
                   <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 ring-1 ring-white/10"
                     style={{ backgroundColor: user.avatar_color }}
                   >
                     {user.username[0].toUpperCase()}
                   </div>
                   <span className="text-sm truncate">{user.username}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          detectMention(e.target.value);
-          onTyping();
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/30 transition-all"
-      />
+      <div className="input-glow rounded-xl transition-all">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            detectMention(e.target.value);
+            onTyping();
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted/40 focus:outline-none transition-all"
+        />
+      </div>
     </div>
   );
 }

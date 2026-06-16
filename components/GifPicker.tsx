@@ -61,32 +61,46 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
 
   if (!apiKey) {
     return (
-      <motion.div ref={containerRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-full mb-2 left-0 w-80 glass rounded-xl overflow-hidden z-30 shadow-xl">
-        <div className="p-4 text-center">
-          <p className="text-muted text-xs">Add <code className="text-accent">NEXT_PUBLIC_GIPHY_API_KEY</code> to <code className="text-accent">.env.local</code> to enable GIFs.</p>
-          <p className="text-muted/50 text-[10px] mt-2">Free key at developers.giphy.com</p>
+      <motion.div ref={containerRef} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="absolute bottom-full mb-2 left-0 w-80 glass-strong rounded-2xl overflow-hidden z-30 glow">
+        <div className="p-5 text-center">
+          <span className="text-3xl block mb-2">🎬</span>
+          <p className="text-muted text-xs">Add <code className="text-accent font-mono">NEXT_PUBLIC_GIPHY_API_KEY</code> to enable GIFs.</p>
+          <p className="text-muted/30 text-[10px] mt-2">Free key at developers.giphy.com</p>
         </div>
       </motion.div>
     );
   }
 
   return (
-    <motion.div ref={containerRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-full mb-2 left-0 w-80 md:w-96 glass rounded-xl overflow-hidden z-30 shadow-xl">
-      <div className="p-2 border-b border-border">
-        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search GIPHY..." autoFocus className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent/50 transition-all" />
+    <motion.div ref={containerRef} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="absolute bottom-full mb-2 left-0 w-80 md:w-96 glass-strong rounded-2xl overflow-hidden z-30 glow">
+      <div className="p-2.5 border-b border-border">
+        <div className="input-glow rounded-lg transition-all">
+          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search GIPHY..." autoFocus className="w-full bg-surface/80 border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted/40 focus:outline-none transition-all" />
+        </div>
       </div>
       <div className="h-64 overflow-y-auto p-2">
-        {loading && gifs.length === 0 && <div className="flex items-center justify-center h-full"><span className="text-muted text-xs">Loading...</span></div>}
+        {loading && gifs.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="text-xl">🎬</motion.span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5">
           {gifs.map((gif) => (
-            <button key={gif.id} onClick={() => { onSelect(gif.images.fixed_height.url); onClose(); }} className="rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all cursor-pointer">
+            <motion.button key={gif.id} onClick={() => { onSelect(gif.images.fixed_height.url); onClose(); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="rounded-xl overflow-hidden ring-1 ring-border hover:ring-accent/40 transition-all cursor-pointer">
               <img src={gif.images.fixed_height_small.url} alt={gif.title} className="w-full h-24 object-cover" loading="lazy" />
-            </button>
+            </motion.button>
           ))}
         </div>
-        {!loading && gifs.length === 0 && <div className="flex items-center justify-center h-full"><span className="text-muted/50 text-xs">No GIFs found</span></div>}
+        {!loading && gifs.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full">
+            <span className="text-2xl mb-2">🔍</span>
+            <span className="text-muted/40 text-xs">No GIFs found</span>
+          </div>
+        )}
       </div>
-      <div className="px-2 py-1 border-t border-border flex justify-end"><span className="text-[9px] text-muted/40">Powered by GIPHY</span></div>
+      <div className="px-3 py-1.5 border-t border-border flex justify-end">
+        <span className="text-[9px] text-muted/25 font-medium">Powered by GIPHY</span>
+      </div>
     </motion.div>
   );
 }
