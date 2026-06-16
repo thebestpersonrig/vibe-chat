@@ -41,7 +41,7 @@ function renderTextContent(content: string, currentUser: string) {
       const mentioned = token.slice(1);
       const isSelf = mentioned.toLowerCase() === currentUser.toLowerCase();
       return (
-        <span key={i} className={`font-semibold rounded px-1 py-0.5 ${isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30" : "text-blue hover:underline cursor-default"}`}>
+        <span key={i} className={`font-semibold rounded px-1.5 py-0.5 ${isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30 mention-highlight" : "text-blue hover:underline cursor-default"}`}>
           {token}
         </span>
       );
@@ -56,16 +56,16 @@ function renderTextContent(content: string, currentUser: string) {
 function MediaContent({ content }: { content: string }) {
   const media = detectMedia(content);
   if (media.type === "image")
-    return <a href={media.url} target="_blank" rel="noopener noreferrer"><img src={media.url} alt="" className="max-w-xs md:max-w-sm rounded-xl mt-1.5 max-h-80 object-contain ring-1 ring-border hover:ring-accent/30 transition-all" loading="lazy" /></a>;
+    return <a href={media.url} target="_blank" rel="noopener noreferrer"><img src={media.url} alt="" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover" loading="lazy" /></a>;
   if (media.type === "gif")
-    return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-xl mt-1.5 max-h-64 ring-1 ring-border" loading="lazy" />;
+    return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-64 ring-1 ring-border media-hover" loading="lazy" />;
   if (media.type === "video")
-    return <video src={media.url} controls className="max-w-xs md:max-w-sm rounded-xl mt-1.5 max-h-80 ring-1 ring-border" preload="metadata" />;
+    return <video src={media.url} controls className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 ring-1 ring-border" preload="metadata" />;
   if (media.type === "youtube")
     return (
       <div className="mt-1.5">
         {media.text && <p className="text-sm text-foreground/90 break-words leading-relaxed mb-1.5">{media.text}</p>}
-        <div className="rounded-xl overflow-hidden max-w-xs md:max-w-sm ring-1 ring-border">
+        <div className="rounded-2xl overflow-hidden max-w-xs md:max-w-sm ring-1 ring-border media-hover">
           <iframe width="100%" height="200" src={`https://www.youtube-nocookie.com/embed/${media.url}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="border-0" />
         </div>
       </div>
@@ -93,67 +93,85 @@ export default function Message({ message, isOwn, username, isGrouped }: Message
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-lg mx-1 transition-all duration-200 ${isGrouped ? "py-0.5" : "py-1.5 mt-1"} hover:bg-gradient-to-r hover:from-surface-hover/40 hover:to-transparent`}
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
     >
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
-        <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
+        <motion.div whileHover={{ scale: 1.1 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
+          <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
+        </motion.div>
       )}
       <div className="flex-1 min-w-0">
         {!isGrouped && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold hover:underline cursor-default" style={{ color: message.avatar_color }}>{message.username}</span>
-            <span className="text-[10px] text-muted/40 cursor-default" title={new Date(message.created_at).toLocaleString()}>{timeAgo(message.created_at)}</span>
+          <div className="flex items-baseline gap-2 mb-0.5">
+            <span className="text-[13px] font-semibold hover:underline cursor-default transition-colors" style={{ color: message.avatar_color }}>{message.username}</span>
+            <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>{timeAgo(message.created_at)}</span>
           </div>
         )}
         {hasMedia ? <MediaContent content={message.content} /> : (
-          <p className="text-sm text-foreground/85 break-words leading-relaxed">{renderTextContent(message.content, username)}</p>
+          <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username)}</p>
         )}
         {grouped.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {grouped.map(({ emoji, users, count }) => {
               const hasReacted = users.includes(username);
               return (
                 <motion.button
                   key={emoji}
                   onClick={() => toggleReaction(emoji)}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.85 }}
                   title={users.join(", ")}
-                  className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-all cursor-pointer ${hasReacted ? "bg-accent/15 border border-accent/30 shadow-sm shadow-accent/10" : "bg-surface/80 border border-border hover:border-border-bright hover:bg-surface-hover"}`}
+                  className={`reaction-enter inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-all cursor-pointer ${hasReacted ? "bg-accent/15 border border-accent/30 shadow-sm shadow-accent/10" : "bg-surface/80 border border-border hover:border-border-bright hover:bg-surface-hover"}`}
                 >
-                  <span>{emoji}</span>
-                  <span className={hasReacted ? "text-accent font-medium" : "text-muted"}>{count}</span>
+                  <span className="text-sm">{emoji}</span>
+                  <span className={hasReacted ? "text-accent font-semibold" : "text-muted"}>{count}</span>
                 </motion.button>
               );
             })}
           </div>
         )}
       </div>
-      <div className="relative shrink-0 self-center flex items-center gap-0.5">
+      <div className="relative shrink-0 self-center flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         {isOwn && (
           <>
-            <button onClick={() => setConfirmDelete(!confirmDelete)} className="opacity-0 group-hover:opacity-100 text-muted hover:text-pink text-xs transition-all cursor-pointer p-1.5 hover:bg-surface rounded-lg" title="Delete">🗑️</button>
+            <motion.button
+              onClick={() => setConfirmDelete(!confirmDelete)}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+              className="text-muted hover:text-pink text-xs transition-colors cursor-pointer p-1.5 hover:bg-pink/10 rounded-lg"
+              title="Delete"
+            >
+              🗑️
+            </motion.button>
             <AnimatePresence>
               {confirmDelete && (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute right-0 bottom-full mb-1 glass-strong rounded-xl p-2.5 z-10 flex items-center gap-2 whitespace-nowrap glow">
+                <motion.div initial={{ opacity: 0, scale: 0.85, y: 4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85, y: 4 }} className="absolute right-0 bottom-full mb-1.5 glass-strong rounded-xl p-3 z-10 flex items-center gap-2.5 whitespace-nowrap glow border border-pink/20">
                   <span className="text-xs text-muted">Delete?</span>
-                  <button onClick={deleteMessage} className="text-xs text-pink hover:text-pink/80 cursor-pointer font-semibold">Yes</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-muted hover:text-foreground cursor-pointer">No</button>
+                  <button onClick={deleteMessage} className="text-xs text-pink hover:text-pink/80 cursor-pointer font-semibold px-2 py-0.5 rounded-md hover:bg-pink/10 transition-colors">Yes</button>
+                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-muted hover:text-foreground cursor-pointer px-2 py-0.5 rounded-md hover:bg-surface-hover transition-colors">No</button>
                 </motion.div>
               )}
             </AnimatePresence>
           </>
         )}
-        <button onClick={() => setShowReactions(!showReactions)} className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground text-sm transition-all cursor-pointer p-1.5 hover:bg-surface rounded-lg">😊</button>
+        <motion.button
+          onClick={() => setShowReactions(!showReactions)}
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          className="text-muted hover:text-foreground text-sm transition-colors cursor-pointer p-1.5 hover:bg-surface-hover rounded-lg"
+        >
+          😊
+        </motion.button>
         <AnimatePresence>
           {showReactions && (
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 5 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 5 }} className="absolute right-0 bottom-full mb-1 glass-strong rounded-2xl p-2 flex gap-0.5 z-10 glow">
+            <motion.div initial={{ opacity: 0, scale: 0.85, y: 5 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85, y: 5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }} className="absolute right-0 bottom-full mb-1.5 glass-strong rounded-2xl p-2 flex gap-0.5 z-10 glow">
               {REACTION_EMOJIS.map((emoji) => (
-                <motion.button key={emoji} onClick={() => toggleReaction(emoji)} whileHover={{ scale: 1.3 }} whileTap={{ scale: 0.8 }} className="text-base cursor-pointer p-1 rounded-lg hover:bg-surface-hover transition-colors">{emoji}</motion.button>
+                <motion.button key={emoji} onClick={() => toggleReaction(emoji)} whileHover={{ scale: 1.35, y: -3 }} whileTap={{ scale: 0.8 }} transition={{ type: "spring", stiffness: 500, damping: 15 }} className="text-lg cursor-pointer p-1.5 rounded-xl hover:bg-surface-hover transition-colors">{emoji}</motion.button>
               ))}
             </motion.div>
           )}

@@ -19,17 +19,18 @@ export default function TypingIndicator({ users }: TypingIndicatorProps) {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: 5 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -5 }}
-        className="flex items-center gap-2.5 px-5 py-2"
+        initial={{ opacity: 0, y: 8, height: 0 }}
+        animate={{ opacity: 1, y: 0, height: "auto" }}
+        exit={{ opacity: 0, y: -5, height: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="flex items-center gap-2.5 px-5 py-2 overflow-hidden"
       >
-        <div className="flex gap-1 bg-surface/60 rounded-full px-3 py-1.5 border border-border/50">
+        <div className="flex gap-1.5 bg-surface/60 rounded-full px-3.5 py-2 border border-border/50 glow">
           <span className="typing-dot w-1.5 h-1.5 bg-accent rounded-full inline-block" />
           <span className="typing-dot w-1.5 h-1.5 bg-pink rounded-full inline-block" />
           <span className="typing-dot w-1.5 h-1.5 bg-blue rounded-full inline-block" />
         </div>
-        <span className="text-xs text-muted/60 italic">{text}</span>
+        <span className="text-xs text-muted/50 italic">{text}</span>
       </motion.div>
     </AnimatePresence>
   );

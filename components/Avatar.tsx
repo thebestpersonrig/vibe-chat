@@ -22,12 +22,12 @@ export default function Avatar({ username, avatarColor, avatarUrl, size = "md", 
         <img
           src={avatarUrl}
           alt={username}
-          className={`${sizes[size]} rounded-full object-cover ring-2 ring-white/5 hover:ring-accent/20 transition-all`}
+          className={`${sizes[size]} rounded-full object-cover ring-2 ring-white/5 hover:ring-accent/30 transition-all duration-200`}
         />
       ) : (
         <div
-          className={`${sizes[size]} rounded-full flex items-center justify-center text-white font-bold ring-2 ring-white/5 hover:ring-accent/20 transition-all`}
-          style={{ backgroundColor: avatarColor }}
+          className={`${sizes[size]} rounded-full flex items-center justify-center text-white font-bold ring-2 ring-white/5 hover:ring-accent/30 transition-all duration-200 shadow-lg`}
+          style={{ backgroundColor: avatarColor, boxShadow: `0 2px 10px ${avatarColor}33` }}
         >
           {username[0].toUpperCase()}
         </div>

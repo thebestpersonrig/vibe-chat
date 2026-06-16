@@ -465,7 +465,7 @@ export default function ChatPage() {
       <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
-        <div className="glass-strong px-4 py-3 flex items-center justify-between shrink-0 relative">
+        <div className="glass-strong px-4 py-3.5 flex items-center justify-between shrink-0 relative">
           <div className="absolute bottom-0 left-0 right-0 divider-glow" />
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden text-muted hover:text-foreground transition-colors cursor-pointer relative">
@@ -498,12 +498,17 @@ export default function ChatPage() {
           <div className="flex-1 flex flex-col min-w-0 relative">
             {activeRoom ? (
               <>
-                <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-4">
+                <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-4 messages-fade-top">
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-fade-in-up">
-                      <motion.span className="text-5xl mb-4" animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }} transition={{ duration: 4, repeat: Infinity }}>{activeRoom.emoji}</motion.span>
-                      <h3 className="text-xl font-bold gradient-text mb-2">Welcome to #{activeRoom.name}</h3>
-                      <p className="text-muted/60 text-sm">Be the first to send a message!</p>
+                      <motion.span className="text-6xl mb-5 gentle-float inline-block" >{activeRoom.emoji}</motion.span>
+                      <h3 className="text-2xl font-bold gradient-text mb-2">Welcome to #{activeRoom.name}</h3>
+                      <p className="text-muted/50 text-sm">Be the first to send a message!</p>
+                      <div className="mt-4 flex gap-1">
+                        {["💬", "🎉", "👋"].map((e, i) => (
+                          <motion.span key={e} className="text-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 0.4, y: 0 }} transition={{ delay: 0.5 + i * 0.15 }}>{e}</motion.span>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {messages.map((msg, i) => (
@@ -526,7 +531,7 @@ export default function ChatPage() {
                   )}
                 </AnimatePresence>
 
-                <div className="border-t border-border p-3 shrink-0 glass-strong relative">
+                <div className="p-3 shrink-0 glass-strong relative border-t border-border">
                   <div className="absolute top-0 left-0 right-0 divider-glow" />
                   <div className="relative flex items-center gap-2">
                     <AnimatePresence>{showGifPicker && <GifPicker onSelect={(url) => { sendMediaMessage(url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}</AnimatePresence>
@@ -535,9 +540,10 @@ export default function ChatPage() {
                     <motion.button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="text-muted hover:text-accent transition-colors cursor-pointer disabled:opacity-50 text-lg shrink-0 p-1.5 rounded-lg hover:bg-surface-hover"
+                      whileHover={{ scale: 1.15, rotate: 5 }}
+                      whileTap={{ scale: 0.85 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                      className="text-muted hover:text-accent transition-colors cursor-pointer disabled:opacity-50 text-lg shrink-0 p-2 rounded-xl hover:bg-accent/10"
                       title="Upload image/video"
                     >
                       {uploading ? "⏳" : "📷"}
@@ -546,7 +552,7 @@ export default function ChatPage() {
                       onClick={() => setShowGifPicker(!showGifPicker)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      className={`text-xs shrink-0 font-extrabold px-2 py-1 rounded-lg transition-all cursor-pointer ${showGifPicker ? "bg-accent/20 text-accent" : "text-muted hover:text-accent hover:bg-surface-hover"}`}
+                      className={`text-[11px] shrink-0 font-black px-2.5 py-1.5 rounded-xl transition-all cursor-pointer tracking-wide ${showGifPicker ? "bg-accent/20 text-accent ring-1 ring-accent/30" : "text-muted hover:text-accent hover:bg-accent/10"}`}
                       title="GIFs"
                     >
                       GIF
@@ -557,8 +563,9 @@ export default function ChatPage() {
                       onClick={sendMessage}
                       disabled={!newMessage.trim()}
                       whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="bg-gradient-to-r from-accent to-pink hover:opacity-90 disabled:opacity-30 text-white px-3 md:px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow"
+                      whileTap={{ scale: 0.9 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                      className="bg-gradient-to-r from-accent to-pink hover:shadow-lg hover:shadow-accent/25 disabled:opacity-30 disabled:hover:shadow-none text-white px-3 md:px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow send-pulse"
                     >
                       <span className="text-sm font-semibold hidden sm:inline">Send</span>
                       <span className="text-sm sm:hidden">→</span>
@@ -569,9 +576,17 @@ export default function ChatPage() {
             ) : (
               <div className="flex-1 flex items-center justify-center animate-fade-in-up">
                 <div className="text-center">
-                  <motion.span className="text-6xl block mb-4" animate={{ y: [0, -10, 0] }} transition={{ duration: 3, repeat: Infinity }}>⚡</motion.span>
-                  <h2 className="text-2xl font-bold gradient-text mb-2">Welcome!</h2>
-                  <p className="text-muted/60 text-sm">Select a room or create one to start chatting</p>
+                  <motion.span className="text-7xl block mb-5 gentle-float inline-block">⚡</motion.span>
+                  <h2 className="text-3xl font-bold gradient-text mb-3">Welcome!</h2>
+                  <p className="text-muted/50 text-sm mb-6">Select a room or create one to start chatting</p>
+                  <motion.button
+                    onClick={() => setSidebarOpen(true)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="md:hidden text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-xl hover:bg-accent/10 transition-all cursor-pointer"
+                  >
+                    Open Rooms
+                  </motion.button>
                 </div>
               </div>
             )}
