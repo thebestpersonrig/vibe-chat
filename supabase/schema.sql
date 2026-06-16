@@ -57,6 +57,7 @@ alter table reactions enable row level security;
 create policy "Anyone can read users" on users for select using (true);
 create policy "Anyone can create users" on users for insert with check (true);
 create policy "Anyone can update own avatar" on users for update using (true) with check (true);
+create policy "Anyone can delete own account" on users for delete using (true);
 
 create policy "Anyone can read rooms" on rooms for select using (true);
 create policy "Anyone can create rooms" on rooms for insert with check (true);

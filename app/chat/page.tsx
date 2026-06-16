@@ -47,14 +47,23 @@ export default function ChatPage() {
   activeRoomRef.current = activeRoom;
 
   useEffect(() => {
-    const stored = localStorage.getItem("rpb-user");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setUsername(parsed.username);
-      setAvatarColor(parsed.avatarColor);
-      setAvatarUrl(parsed.avatarUrl || null);
+    async function init() {
+      const stored = localStorage.getItem("rpb-user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const { data } = await supabase.from("users").select("username").eq("username", parsed.username).single();
+        if (!data) {
+          localStorage.removeItem("rpb-user");
+          setLoading(false);
+          return;
+        }
+        setUsername(parsed.username);
+        setAvatarColor(parsed.avatarColor);
+        setAvatarUrl(parsed.avatarUrl || null);
+      }
+      setLoading(false);
     }
-    setLoading(false);
+    init();
   }, []);
 
   useEffect(() => {
@@ -370,6 +379,11 @@ export default function ChatPage() {
     hasSetInitialRoom.current = false;
   }
 
+  async function handleDeleteAccount() {
+    await supabase.from("users").delete().eq("username", username);
+    handleLogout();
+  }
+
   function handleAvatarChange(url: string) {
     setAvatarUrl(url);
     const stored = JSON.parse(localStorage.getItem("rpb-user") || "{}");
@@ -445,7 +459,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} onLogout={handleLogout} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         <div className="glass-strong px-4 py-3 flex items-center justify-between shrink-0 relative">

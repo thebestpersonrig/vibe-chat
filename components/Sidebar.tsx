@@ -15,18 +15,20 @@ interface SidebarProps {
   avatarUrl: string | null;
   onAvatarChange: (url: string) => void;
   onLogout: () => void;
+  onDeleteAccount: () => void;
   unreadCounts: Record<string, number>;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, onAvatarChange, onLogout, unreadCounts, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, onAvatarChange, onLogout, onDeleteAccount, unreadCounts, isOpen, onClose }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("💬");
   const [creating, setCreating] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   async function handleCreateRoom(e: React.FormEvent) {
@@ -155,8 +157,22 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                 <span className="text-[10px] text-emerald">Online</span>
               )}
             </div>
-            <button onClick={onLogout} className="text-muted hover:text-pink transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Log out">✕</button>
+            <button onClick={onLogout} className="text-muted hover:text-foreground transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Log out">↩</button>
+            <button onClick={() => setConfirmDeleteAccount(true)} className="text-muted hover:text-pink transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Delete account">🗑️</button>
           </div>
+          <AnimatePresence>
+            {confirmDeleteAccount && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="mt-2 p-3 rounded-xl bg-pink/10 border border-pink/20">
+                  <p className="text-xs text-pink mb-2">Delete your account permanently?</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setConfirmDeleteAccount(false); onDeleteAccount(); }} className="flex-1 text-xs bg-pink/20 hover:bg-pink/30 text-pink py-1.5 rounded-lg cursor-pointer transition-colors font-medium">Delete</button>
+                    <button onClick={() => setConfirmDeleteAccount(false)} className="flex-1 text-xs bg-surface hover:bg-surface-hover text-muted py-1.5 rounded-lg cursor-pointer transition-colors">Cancel</button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </>
