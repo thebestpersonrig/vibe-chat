@@ -26,6 +26,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [selectedEmoji, setSelectedEmoji] = useState("💬");
   const [creating, setCreating] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   async function handleCreateRoom(e: React.FormEvent) {
@@ -41,11 +42,22 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setAvatarError("");
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError("Max 5MB");
+      return;
+    }
     setUploadingAvatar(true);
     const url = await uploadImage(file);
     if (url) {
-      await supabase.from("users").update({ avatar_url: url }).eq("username", username);
-      onAvatarChange(url);
+      const { error } = await supabase.from("users").update({ avatar_url: url }).eq("username", username);
+      if (error) {
+        setAvatarError("Failed to save");
+      } else {
+        onAvatarChange(url);
+      }
+    } else {
+      setAvatarError("Upload failed — see console");
     }
     setUploadingAvatar(false);
     if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -137,7 +149,11 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             </button>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium truncate block">{username}</span>
-              <span className="text-[10px] text-emerald">Online</span>
+              {avatarError ? (
+                <span className="text-[10px] text-pink">{avatarError}</span>
+              ) : (
+                <span className="text-[10px] text-emerald">Online</span>
+              )}
             </div>
             <button onClick={onLogout} className="text-muted hover:text-pink transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Log out">✕</button>
           </div>

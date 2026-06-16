@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { AVATAR_COLORS } from "@/lib/types";
+import { hashPassword } from "@/lib/auth";
 
 function Particles() {
   return (
@@ -42,6 +43,9 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
+  const [step, setStep] = useState<"username" | "password">("username");
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [password, setPassword] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -51,7 +55,7 @@ export default function Home() {
     }
   }, [router]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleUsernameSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = username.trim();
     if (trimmed.length < 2) {
@@ -72,33 +76,67 @@ export default function Home() {
       .eq("username", trimmed)
       .single();
 
-    if (existing) {
+    setIsNewUser(!existing);
+    setStep("password");
+    setChecking(false);
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 4) {
+      setError("Password must be at least 4 characters");
+      return;
+    }
+
+    setChecking(true);
+    setError("");
+
+    const trimmed = username.trim();
+    const hashed = await hashPassword(password);
+
+    if (isNewUser) {
+      const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+      const { error: insertErr } = await supabase
+        .from("users")
+        .insert({ username: trimmed, avatar_color: color, password_hash: hashed });
+
+      if (insertErr) {
+        if (insertErr.code === "23505") {
+          setError("Username just got taken — try another");
+          setStep("username");
+        } else {
+          setError("Something went wrong, try again");
+        }
+        setChecking(false);
+        return;
+      }
+
+      localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color, avatarUrl: null }));
+      router.push("/chat");
+    } else {
+      const { data: existing } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", trimmed)
+        .single();
+
+      if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
+        setError("Wrong password");
+        setChecking(false);
+        return;
+      }
+
+      if (!existing.password_hash) {
+        await supabase.from("users").update({ password_hash: hashed }).eq("username", trimmed);
+      }
+
       localStorage.setItem("rpb-user", JSON.stringify({
         username: existing.username,
         avatarColor: existing.avatar_color,
         avatarUrl: existing.avatar_url,
       }));
       router.push("/chat");
-      return;
     }
-
-    const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-    const { error: insertErr } = await supabase
-      .from("users")
-      .insert({ username: trimmed, avatar_color: color });
-
-    if (insertErr) {
-      if (insertErr.code === "23505") {
-        setError("Username just got taken — try another");
-      } else {
-        setError("Something went wrong, try again");
-      }
-      setChecking(false);
-      return;
-    }
-
-    localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color, avatarUrl: null }));
-    router.push("/chat");
   }
 
   return (
@@ -160,52 +198,87 @@ export default function Home() {
           </motion.p>
         </div>
 
-        <motion.form
-          onSubmit={handleSubmit}
+        <motion.div
           className="glass-strong rounded-2xl p-8 glow-strong gradient-border"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
         >
-          <label htmlFor="username" className="block text-sm font-medium text-muted mb-3">
-            Pick a username
-          </label>
-          <div className="input-glow rounded-xl transition-all">
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setError("");
-              }}
-              placeholder="Enter your name..."
-              autoFocus
-              maxLength={20}
-              disabled={checking}
-              className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
-            />
-          </div>
-          <p className="text-muted/40 text-[11px] mt-1.5">If this name exists, you&apos;ll log in as that user</p>
-          {error && (
-            <motion.p
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-pink text-sm mt-2"
-            >
-              {error}
-            </motion.p>
+          {step === "username" ? (
+            <form onSubmit={handleUsernameSubmit}>
+              <label htmlFor="username" className="block text-sm font-medium text-muted mb-3">
+                Pick a username
+              </label>
+              <div className="input-glow rounded-xl transition-all">
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setError("");
+                  }}
+                  placeholder="Enter your name..."
+                  autoFocus
+                  maxLength={20}
+                  disabled={checking}
+                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
+                />
+              </div>
+              <p className="text-muted/40 text-[11px] mt-1.5">New name = new account, existing = log in</p>
+              {error && (
+                <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-pink text-sm mt-2">{error}</motion.p>
+              )}
+              <motion.button
+                type="submit"
+                disabled={checking || username.trim().length < 2}
+                whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(139,92,246,0.3)" }}
+                whileTap={{ scale: 0.97 }}
+                className="w-full mt-5 bg-gradient-to-r from-accent via-pink to-blue text-white font-semibold py-3.5 rounded-xl transition-all cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50"
+              >
+                {checking ? "Checking..." : "Continue →"}
+              </motion.button>
+            </form>
+          ) : (
+            <form onSubmit={handlePasswordSubmit}>
+              <label htmlFor="password" className="block text-sm font-medium text-muted mb-1">
+                {isNewUser ? "Create a password" : "Enter your password"}
+              </label>
+              <p className="text-muted/40 text-[11px] mb-3">for &quot;{username.trim()}&quot;</p>
+              <div className="input-glow rounded-xl transition-all">
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError("");
+                  }}
+                  placeholder={isNewUser ? "Create a password..." : "Enter your password..."}
+                  autoFocus
+                  disabled={checking}
+                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted/40 focus:outline-none transition-all text-base disabled:opacity-50"
+                />
+              </div>
+              <p className="text-muted/40 text-[11px] mt-1.5">{isNewUser ? "Min 4 characters — remember this!" : "Same browser? You stay logged in"}</p>
+              {error && (
+                <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-pink text-sm mt-2">{error}</motion.p>
+              )}
+              <div className="flex gap-2 mt-5">
+                <button type="button" onClick={() => { setStep("username"); setError(""); setPassword(""); }} className="px-5 py-3.5 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
+                <motion.button
+                  type="submit"
+                  disabled={checking || password.length < 4}
+                  whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(139,92,246,0.3)" }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex-1 bg-gradient-to-r from-accent via-pink to-blue text-white font-semibold py-3.5 rounded-xl transition-all cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50"
+                >
+                  {checking ? "Checking..." : isNewUser ? "Create Account" : "Log In"}
+                </motion.button>
+              </div>
+            </form>
           )}
-          <motion.button
-            type="submit"
-            disabled={checking || username.trim().length < 2}
-            whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(139,92,246,0.3)" }}
-            whileTap={{ scale: 0.97 }}
-            className="w-full mt-5 bg-gradient-to-r from-accent via-pink to-blue text-white font-semibold py-3.5 rounded-xl transition-all cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50"
-          >
-            {checking ? "Checking..." : "Start Chatting →"}
-          </motion.button>
-        </motion.form>
+        </motion.div>
 
         <motion.p
           className="text-center text-muted/30 text-xs mt-8"
@@ -213,7 +286,7 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
         >
-          No passwords — your username is your identity
+          Your account is secured with a password
         </motion.p>
       </motion.div>
     </div>

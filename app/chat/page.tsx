@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
-import { Room, Message as MessageType, Reaction, UserPresence, AVATAR_COLORS } from "@/lib/types";
+import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
+import { hashPassword } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import MessageComp from "@/components/Message";
 import MentionInput from "@/components/MentionInput";
@@ -28,8 +29,12 @@ export default function ChatPage() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loginError, setLoginError] = useState("");
   const [loginChecking, setLoginChecking] = useState(false);
+  const [loginStep, setLoginStep] = useState<"username" | "password">("username");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginIsNew, setLoginIsNew] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -55,6 +60,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!username) return;
     loadRooms();
+    loadAllUsers();
 
     const roomSub = supabase
       .channel("rooms-changes")
@@ -90,6 +96,11 @@ export default function ChatPage() {
         setActiveRoom(data[0]);
       }
     }
+  }
+
+  async function loadAllUsers() {
+    const { data } = await supabase.from("users").select("*").order("username");
+    if (data) setAllUsers(data);
   }
 
   useEffect(() => {
@@ -273,7 +284,7 @@ export default function ChatPage() {
     return new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime() < 120000;
   }
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = (form.get("username") as string).trim();
@@ -288,29 +299,65 @@ export default function ChatPage() {
       .eq("username", name)
       .single();
 
-    if (existing) {
+    setLoginUsername(name);
+    setLoginIsNew(!existing);
+    setLoginStep("password");
+    setLoginChecking(false);
+  }
+
+  async function handleLoginStep2(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const password = (form.get("password") as string);
+    if (!password || password.length < 4) {
+      setLoginError("Password must be at least 4 characters");
+      return;
+    }
+
+    setLoginChecking(true);
+    setLoginError("");
+
+    const hashed = await hashPassword(password);
+
+    if (loginIsNew) {
+      const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+      const { error: insertErr } = await supabase.from("users").insert({ username: loginUsername, avatar_color: color, password_hash: hashed });
+
+      if (insertErr) {
+        setLoginError(insertErr.code === "23505" ? "Username just got taken" : "Something went wrong");
+        setLoginChecking(false);
+        return;
+      }
+
+      localStorage.setItem("rpb-user", JSON.stringify({ username: loginUsername, avatarColor: color, avatarUrl: null }));
+      setUsername(loginUsername);
+      setAvatarColor(color);
+      setAvatarUrl(null);
+    } else {
+      const { data: existing } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", loginUsername)
+        .single();
+
+      if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
+        setLoginError("Wrong password");
+        setLoginChecking(false);
+        return;
+      }
+
+      if (!existing.password_hash) {
+        await supabase.from("users").update({ password_hash: hashed }).eq("username", loginUsername);
+      }
+
       localStorage.setItem("rpb-user", JSON.stringify({ username: existing.username, avatarColor: existing.avatar_color, avatarUrl: existing.avatar_url }));
       setUsername(existing.username);
       setAvatarColor(existing.avatar_color);
       setAvatarUrl(existing.avatar_url || null);
-      setLoginChecking(false);
-      return;
     }
 
-    const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-    const { error: insertErr } = await supabase.from("users").insert({ username: name, avatar_color: color });
-
-    if (insertErr) {
-      setLoginError(insertErr.code === "23505" ? "Username just got taken" : "Something went wrong");
-      setLoginChecking(false);
-      return;
-    }
-
-    localStorage.setItem("rpb-user", JSON.stringify({ username: name, avatarColor: color, avatarUrl: null }));
-    setUsername(name);
-    setAvatarColor(color);
-    setAvatarUrl(null);
     setLoginChecking(false);
+    setLoginStep("username");
   }
 
   function handleLogout() {
@@ -356,20 +403,38 @@ export default function ChatPage() {
           <div className="text-center mb-6">
             <motion.span className="text-4xl inline-block" animate={{ y: [0, -8, 0] }} transition={{ duration: 3, repeat: Infinity }}>⚡</motion.span>
             <h1 className="text-2xl font-bold gradient-text mt-2">Radiant Power Batch</h1>
-            <p className="text-muted text-sm mt-1">Pick a username to start chatting</p>
+            <p className="text-muted text-sm mt-1">{loginStep === "username" ? "Pick a username to start chatting" : loginIsNew ? `Create password for "${loginUsername}"` : `Enter password for "${loginUsername}"`}</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <div className="input-glow rounded-xl transition-all">
-                <input name="username" type="text" placeholder="Your username..." maxLength={20} autoFocus required minLength={2} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+          {loginStep === "username" ? (
+            <form onSubmit={handleLoginStep1} className="space-y-4">
+              <div>
+                <div className="input-glow rounded-xl transition-all">
+                  <input name="username" type="text" placeholder="Your username..." maxLength={20} autoFocus required minLength={2} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+                </div>
+                <p className="text-muted/40 text-[11px] mt-1.5">New name = new account, existing = log in</p>
               </div>
-              <p className="text-muted/40 text-[11px] mt-1.5">Existing name? You&apos;ll log back in</p>
-            </div>
-            {loginError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-pink text-sm">{loginError}</motion.p>}
-            <motion.button type="submit" disabled={loginChecking} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50">
-              {loginChecking ? "Checking..." : "Join Chat →"}
-            </motion.button>
-          </form>
+              {loginError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-pink text-sm">{loginError}</motion.p>}
+              <motion.button type="submit" disabled={loginChecking} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50">
+                {loginChecking ? "Checking..." : "Continue →"}
+              </motion.button>
+            </form>
+          ) : (
+            <form onSubmit={handleLoginStep2} className="space-y-4">
+              <div>
+                <div className="input-glow rounded-xl transition-all">
+                  <input name="password" type="password" placeholder={loginIsNew ? "Create a password..." : "Enter your password..."} autoFocus required minLength={4} disabled={loginChecking} className="w-full bg-surface/80 border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted/40 focus:outline-none transition-all disabled:opacity-50" />
+                </div>
+                <p className="text-muted/40 text-[11px] mt-1.5">{loginIsNew ? "Min 4 characters — remember this!" : "Same browser? You stay logged in"}</p>
+              </div>
+              {loginError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-pink text-sm">{loginError}</motion.p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setLoginStep("username"); setLoginError(""); }} className="px-4 py-3 rounded-xl text-muted hover:text-foreground border border-border hover:bg-surface-hover transition-all cursor-pointer text-sm">Back</button>
+                <motion.button type="submit" disabled={loginChecking} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="flex-1 bg-gradient-to-r from-accent to-pink text-white font-semibold py-3 rounded-xl cursor-pointer btn-shimmer relative overflow-hidden disabled:opacity-50">
+                  {loginChecking ? "Checking..." : loginIsNew ? "Create Account" : "Log In"}
+                </motion.button>
+              </div>
+            </form>
+          )}
         </motion.div>
       </div>
     );
@@ -470,7 +535,7 @@ export default function ChatPage() {
                       GIF
                     </motion.button>
 
-                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={`Message #${activeRoom.name}...`} onlineUsers={onlineUsers} currentUser={username} />
+                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={`Message #${activeRoom.name}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
                     <motion.button
                       onClick={sendMessage}
                       disabled={!newMessage.trim()}

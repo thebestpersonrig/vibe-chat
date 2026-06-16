@@ -12,7 +12,10 @@ export async function uploadImage(file: File): Promise<string | null> {
     cacheControl: "3600",
     upsert: false,
   });
-  if (error) return null;
+  if (error) {
+    console.error("Storage upload failed:", error.message);
+    return null;
+  }
   const { data } = supabase.storage.from("media").getPublicUrl(path);
   return data.publicUrl;
 }

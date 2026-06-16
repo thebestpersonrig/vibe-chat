@@ -9,6 +9,7 @@ create table if not exists users (
   username text unique not null,
   avatar_color text not null,
   avatar_url text,
+  password_hash text,
   created_at timestamptz default now()
 );
 
@@ -86,3 +87,22 @@ $$ language sql security definer;
 -- Seed a default room
 insert into rooms (name, emoji) values ('General', '💬')
 on conflict do nothing;
+
+-- ============================================
+-- Storage Setup (run AFTER creating the bucket)
+-- ============================================
+-- 1. Go to Storage in Supabase Dashboard
+-- 2. Create a new bucket called "media" with Public = ON
+-- 3. Then run the policies below:
+
+insert into storage.buckets (id, name, public)
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+create policy "Anyone can upload media"
+on storage.objects for insert
+with check (bucket_id = 'media');
+
+create policy "Anyone can read media"
+on storage.objects for select
+using (bucket_id = 'media');
