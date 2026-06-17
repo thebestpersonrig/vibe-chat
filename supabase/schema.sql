@@ -13,6 +13,7 @@ create table if not exists users (
   is_admin boolean default false,
   title text,
   balance integer default 0,
+  muted_until timestamptz,
   created_at timestamptz default now()
 );
 

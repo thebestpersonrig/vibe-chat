@@ -33,6 +33,7 @@ export interface User {
   is_admin?: boolean;
   title?: string | null;
   balance?: number;
+  muted_until?: string | null;
   created_at: string;
 }
 

@@ -12,6 +12,28 @@ interface AdminPanelProps {
   onUpdate: () => void;
 }
 
+const MUTE_DURATIONS = [
+  { label: "5m", minutes: 5 },
+  { label: "15m", minutes: 15 },
+  { label: "1h", minutes: 60 },
+  { label: "6h", minutes: 360 },
+  { label: "24h", minutes: 1440 },
+  { label: "7d", minutes: 10080 },
+];
+
+function getMuteStatus(user: User): { muted: boolean; remaining: string } {
+  if (!user.muted_until) return { muted: false, remaining: "" };
+  const until = new Date(user.muted_until).getTime();
+  const now = Date.now();
+  if (until <= now) return { muted: false, remaining: "" };
+  const diff = until - now;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return { muted: true, remaining: `${mins}m left` };
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return { muted: true, remaining: `${hrs}h left` };
+  return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
+}
+
 export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
@@ -55,6 +77,21 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
     setSaving(false);
   }
 
+  async function muteUser(username: string, minutes: number) {
+    setSaving(true);
+    const until = new Date(Date.now() + minutes * 60000).toISOString();
+    await supabase.from("users").update({ muted_until: until }).eq("username", username);
+    onUpdate();
+    setSaving(false);
+  }
+
+  async function unmuteUser(username: string) {
+    setSaving(true);
+    await supabase.from("users").update({ muted_until: null }).eq("username", username);
+    onUpdate();
+    setSaving(false);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -81,6 +118,7 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {allUsers.map((user) => {
             const isEditing = editingUser === user.username;
+            const muteStatus = getMuteStatus(user);
             return (
               <div key={user.username}>
                 <button
@@ -93,6 +131,7 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                       <span className="text-sm font-medium truncate">{user.username}</span>
                       {user.is_admin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
                       {user.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border truncate max-w-[100px]">{user.title}</span>}
+                      {muteStatus.muted && <span className="text-[9px] bg-pink/15 text-pink px-1.5 py-0.5 rounded-full font-medium">🔇 {muteStatus.remaining}</span>}
                     </div>
                     <span className="text-[10px] text-muted/50">💰 {user.balance || 0}</span>
                   </div>
@@ -164,6 +203,33 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                             >
                               Set
                             </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
+                            Mute {muteStatus.muted ? `— 🔇 ${muteStatus.remaining}` : ""}
+                          </label>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {MUTE_DURATIONS.map(({ label, minutes }) => (
+                              <button
+                                key={label}
+                                onClick={() => muteUser(user.username, minutes)}
+                                disabled={saving}
+                                className="text-[10px] bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                              >
+                                {label}
+                              </button>
+                            ))}
+                            {muteStatus.muted && (
+                              <button
+                                onClick={() => unmuteUser(user.username)}
+                                disabled={saving}
+                                className="text-[10px] bg-emerald/20 hover:bg-emerald/30 text-emerald px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                              >
+                                Unmute
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

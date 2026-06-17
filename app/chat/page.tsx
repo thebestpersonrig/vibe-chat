@@ -253,9 +253,27 @@ export default function ChatPage() {
     if (nearBottom) setNewMsgCount(0);
   }
 
+  function isMuted(): boolean {
+    const me = allUsers.find((u) => u.username === username);
+    if (!me?.muted_until) return false;
+    return new Date(me.muted_until).getTime() > Date.now();
+  }
+
+  function getMuteRemaining(): string {
+    const me = allUsers.find((u) => u.username === username);
+    if (!me?.muted_until) return "";
+    const diff = new Date(me.muted_until).getTime() - Date.now();
+    if (diff <= 0) return "";
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    return `${Math.floor(hrs / 24)}d`;
+  }
+
   async function sendMessage() {
     const content = newMessage.trim();
-    if (!content || !activeRoom) return;
+    if (!content || !activeRoom || isMuted()) return;
     setNewMessage("");
 
     const tempId = `temp-${Date.now()}`;
@@ -286,7 +304,7 @@ export default function ChatPage() {
   }
 
   async function sendMediaMessage(url: string) {
-    if (!activeRoom) return;
+    if (!activeRoom || isMuted()) return;
 
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [...prev, {
@@ -642,6 +660,12 @@ export default function ChatPage() {
 
                 <div className="p-3 shrink-0 glass-strong relative border-t border-border">
                   <div className="absolute top-0 left-0 right-0 divider-glow" />
+                  {isMuted() ? (
+                    <div className="relative flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-pink/5 border border-pink/20">
+                      <span className="text-lg">🔇</span>
+                      <span className="text-sm text-pink/80 font-medium">You are muted — {getMuteRemaining()} remaining</span>
+                    </div>
+                  ) : (
                   <div className="relative flex items-center gap-2">
                     <AnimatePresence>{showGifPicker && <GifPicker onSelect={(url) => { sendMediaMessage(url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}</AnimatePresence>
 
@@ -689,6 +713,7 @@ export default function ChatPage() {
                       <span className="text-sm sm:hidden">→</span>
                     </motion.button>
                   </div>
+                  )}
                 </div>
               </>
             ) : (
