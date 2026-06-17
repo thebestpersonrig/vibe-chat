@@ -12,6 +12,7 @@ import MentionInput from "@/components/MentionInput";
 import OnlineUsers from "@/components/OnlineUsers";
 import TypingIndicator from "@/components/TypingIndicator";
 import GifPicker from "@/components/GifPicker";
+import AdminPanel from "@/components/AdminPanel";
 
 export default function ChatPage() {
   const [username, setUsername] = useState("");
@@ -38,6 +39,8 @@ export default function ChatPage() {
   const [loginIsNew, setLoginIsNew] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [dmNames, setDmNames] = useState<Record<string, string>>({});
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -263,6 +266,7 @@ export default function ChatPage() {
       avatar_color: avatarColor,
       avatar_url: avatarUrl,
       content,
+      is_anonymous: isAnonymous,
       created_at: new Date().toISOString(),
       reactions: [],
     }]);
@@ -270,7 +274,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous })
       .select()
       .single();
 
@@ -292,6 +296,7 @@ export default function ChatPage() {
       avatar_color: avatarColor,
       avatar_url: avatarUrl,
       content: url,
+      is_anonymous: isAnonymous,
       created_at: new Date().toISOString(),
       reactions: [],
     }]);
@@ -299,7 +304,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: url })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: url, is_anonymous: isAnonymous })
       .select()
       .single();
 
@@ -548,7 +553,13 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <AnimatePresence>
+        {showAdminPanel && (
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} />
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         <div className="glass-strong px-4 py-3.5 flex items-center justify-between shrink-0 relative">
@@ -605,9 +616,12 @@ export default function ChatPage() {
                       </div>
                     </div>
                   )}
-                  {messages.map((msg, i) => (
-                    <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} isAdmin={isAdmin} />
-                  ))}
+                  {messages.map((msg, i) => {
+                    const sender = allUsers.find((u) => u.username === msg.username);
+                    return (
+                      <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} isAdmin={isAdmin} senderTitle={sender?.title} />
+                    );
+                  })}
                 </div>
 
                 <TypingIndicator users={typingUsers} />
@@ -652,8 +666,17 @@ export default function ChatPage() {
                     >
                       GIF
                     </motion.button>
+                    <motion.button
+                      onClick={() => setIsAnonymous(!isAnonymous)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${isAnonymous ? "bg-muted/20 ring-1 ring-muted/40 scale-105" : "hover:bg-surface-hover opacity-50 hover:opacity-100"}`}
+                      title={isAnonymous ? "Anonymous mode ON" : "Send anonymously"}
+                    >
+                      🎭
+                    </motion.button>
 
-                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
+                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
                     <motion.button
                       onClick={sendMessage}
                       disabled={!newMessage.trim()}

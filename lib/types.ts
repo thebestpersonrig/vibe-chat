@@ -13,6 +13,7 @@ export interface Message {
   avatar_color: string;
   avatar_url?: string | null;
   content: string;
+  is_anonymous?: boolean;
   created_at: string;
   reactions?: Reaction[];
 }
@@ -30,6 +31,8 @@ export interface User {
   avatar_color: string;
   avatar_url?: string | null;
   is_admin?: boolean;
+  title?: string | null;
+  balance?: number;
   created_at: string;
 }
 

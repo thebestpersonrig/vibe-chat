@@ -20,13 +20,14 @@ interface SidebarProps {
   onDeleteAccount: () => void;
   onDeleteRoom: (roomId: string) => void;
   onStartDm: (targetUser: string) => void;
+  onOpenAdminPanel: () => void;
   unreadCounts: Record<string, number>;
   dmNames: Record<string, string>;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, unreadCounts, dmNames, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
@@ -41,6 +42,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
 
   const groupRooms = rooms.filter((r) => r.type !== "dm");
   const dmRooms = rooms.filter((r) => r.type === "dm");
+  const currentUserData = allUsers.find((u) => u.username === username);
 
   const dmableUsers = allUsers.filter(
     (u) => u.username !== username && u.username.toLowerCase().includes(dmSearch.toLowerCase())
@@ -231,7 +233,15 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           {groupRooms.length === 0 && <p className="text-muted/40 text-xs text-center py-4">No rooms yet — create one!</p>}
         </div>
 
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-2">
+          {isAdmin && (
+            <button
+              onClick={onOpenAdminPanel}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-all cursor-pointer border border-accent/20"
+            >
+              <span>👑</span> Admin Panel
+            </button>
+          )}
           <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
           <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-hover/30 transition-all">
             <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="cursor-pointer group relative" title="Change avatar">
@@ -241,15 +251,19 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
               </div>
             </button>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-sm font-medium truncate">{username}</span>
                 {isAdmin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
+                {currentUserData?.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border">{currentUserData.title}</span>}
               </div>
-              {avatarError ? (
-                <span className="text-[10px] text-pink">{avatarError}</span>
-              ) : (
-                <span className="text-[10px] text-emerald">Online</span>
-              )}
+              <div className="flex items-center gap-2">
+                {avatarError ? (
+                  <span className="text-[10px] text-pink">{avatarError}</span>
+                ) : (
+                  <span className="text-[10px] text-emerald">Online</span>
+                )}
+                <span className="text-[10px] text-muted/50">💰 {currentUserData?.balance || 0}</span>
+              </div>
             </div>
             <button onClick={onLogout} className="text-muted hover:text-foreground transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Log out">↩</button>
             <button onClick={() => setConfirmDeleteAccount(true)} className="text-muted hover:text-pink transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Delete account">🗑️</button>

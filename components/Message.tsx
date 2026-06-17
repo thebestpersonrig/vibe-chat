@@ -12,6 +12,7 @@ interface MessageProps {
   username: string;
   isGrouped: boolean;
   isAdmin: boolean;
+  senderTitle?: string | null;
 }
 
 function timeAgo(dateString: string): string {
@@ -74,12 +75,18 @@ function MediaContent({ content }: { content: string }) {
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle }: MessageProps) {
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const canDelete = isOwn || isAdmin;
+
+  const isAnon = message.is_anonymous;
+  const showReal = isAnon && (isOwn || isAdmin);
+  const displayName = isAnon && !showReal ? "Anonymous" : message.username;
+  const displayColor = isAnon && !showReal ? "#6B7280" : message.avatar_color;
+  const displayAvatar = isAnon && !showReal ? null : message.avatar_url;
 
   async function toggleReaction(emoji: string) {
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
@@ -98,19 +105,25 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin }
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn && !isAnon ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
     >
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
         <motion.div whileHover={{ scale: 1.1 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
-          <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
+          <Avatar username={isAnon && !showReal ? "?" : displayName} avatarColor={displayColor} avatarUrl={displayAvatar} size="md" className="mt-0.5" />
         </motion.div>
       )}
       <div className="flex-1 min-w-0">
         {!isGrouped && (
-          <div className="flex items-baseline gap-2 mb-0.5">
-            <span className="text-[13px] font-semibold hover:underline cursor-default transition-colors" style={{ color: message.avatar_color }}>{message.username}</span>
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-[13px] font-semibold hover:underline cursor-default transition-colors" style={{ color: displayColor }}>{displayName}</span>
+            {isAnon && showReal && (
+              <span className="text-[9px] bg-muted/20 text-muted px-1.5 py-0.5 rounded-full">🎭 anon</span>
+            )}
+            {senderTitle && !isAnon && (
+              <span className="text-[9px] bg-accent/10 text-accent/70 px-1.5 py-0.5 rounded-full border border-accent/15 font-medium">{senderTitle}</span>
+            )}
             <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>{timeAgo(message.created_at)}</span>
           </div>
         )}

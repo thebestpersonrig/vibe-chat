@@ -11,6 +11,8 @@ create table if not exists users (
   avatar_url text,
   password_hash text,
   is_admin boolean default false,
+  title text,
+  balance integer default 0,
   created_at timestamptz default now()
 );
 
@@ -40,6 +42,7 @@ create table if not exists messages (
   avatar_color text not null default '#8B5CF6',
   avatar_url text,
   content text not null,
+  is_anonymous boolean default false,
   created_at timestamptz default now()
 );
 
