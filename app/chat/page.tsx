@@ -194,12 +194,12 @@ export default function ChatPage() {
       .limit(200);
     if (msgs) {
       setMessages(msgs);
-      setTimeout(() => scrollToBottom(), 100);
+      setTimeout(() => scrollToBottom(true), 50);
     }
   }
 
-  function scrollToBottom() {
-    messagesContainerRef.current?.scrollTo({ top: messagesContainerRef.current.scrollHeight, behavior: "smooth" });
+  function scrollToBottom(instant = false) {
+    messagesContainerRef.current?.scrollTo({ top: messagesContainerRef.current.scrollHeight, behavior: instant ? "instant" : "smooth" });
   }
 
   function handleScroll() {
@@ -514,8 +514,9 @@ export default function ChatPage() {
                   {messages.map((msg, i) => (
                     <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} />
                   ))}
-                  <TypingIndicator users={typingUsers} />
                 </div>
+
+                <TypingIndicator users={typingUsers} />
 
                 <AnimatePresence>
                   {newMsgCount > 0 && (
