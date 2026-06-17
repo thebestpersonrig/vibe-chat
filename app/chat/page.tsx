@@ -122,10 +122,13 @@ export default function ChatPage() {
       })
       .subscribe();
 
+    const usersInterval = setInterval(loadAllUsers, 15000);
+
     return () => {
       supabase.removeChannel(roomSub);
       supabase.removeChannel(globalMsgSub);
       supabase.removeChannel(usersSub);
+      clearInterval(usersInterval);
     };
   }, [username]);
 
