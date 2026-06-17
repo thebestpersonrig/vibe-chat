@@ -224,10 +224,10 @@ export default function ChatPage() {
       .select("*, reactions(*)")
       .eq("room_id", roomId)
       .gte("created_at", cutoff)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(200);
     if (msgs) {
-      setMessages(msgs);
+      setMessages(msgs.reverse());
       setTimeout(() => scrollToBottom(true), 50);
     }
   }
