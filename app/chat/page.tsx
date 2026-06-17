@@ -85,7 +85,7 @@ export default function ChatPage() {
           const other = members.find((m) => m.username !== username);
           if (other) setDmNames((prev) => ({ ...prev, [room.id]: other.username }));
         }
-        setRooms((prev) => [...prev, room]);
+        setRooms((prev) => prev.some((r) => r.id === room.id) ? prev : [...prev, room]);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
         const deletedId = (payload.old as { id: string }).id;
@@ -101,7 +101,12 @@ export default function ChatPage() {
         if (msg.username === username) return;
         const current = activeRoomRef.current;
         if (!current || msg.room_id !== current.id) {
-          setUnreadCounts((prev) => ({ ...prev, [msg.room_id]: (prev[msg.room_id] || 0) + 1 }));
+          setRooms((prev) => {
+            if (prev.some((r) => r.id === msg.room_id)) {
+              setUnreadCounts((uc) => ({ ...uc, [msg.room_id]: (uc[msg.room_id] || 0) + 1 }));
+            }
+            return prev;
+          });
         }
       })
       .subscribe();
@@ -149,6 +154,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeRoom || !username) return;
     setMessages([]);
+    setTypingUsers([]);
     loadMessages(activeRoom.id);
     setNewMsgCount(0);
     setUnreadCounts((prev) => ({ ...prev, [activeRoom.id]: 0 }));
@@ -574,15 +580,6 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {activeRoom && isAdmin && activeRoom.type !== "dm" && (
-              <button
-                onClick={() => handleDeleteRoom(activeRoom.id)}
-                className="text-muted hover:text-pink text-xs transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-pink/10"
-                title="Delete room (admin)"
-              >
-                🗑️
-              </button>
-            )}
             {activeRoom && (
               <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
             )}
