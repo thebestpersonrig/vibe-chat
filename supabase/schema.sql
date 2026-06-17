@@ -97,6 +97,7 @@ create policy "Anyone can delete room_members" on room_members for delete using 
 alter publication supabase_realtime add table messages;
 alter publication supabase_realtime add table reactions;
 alter publication supabase_realtime add table rooms;
+alter publication supabase_realtime add table users;
 
 -- Auto-cleanup: delete messages older than 24 hours
 -- Call this with pg_cron or a scheduled function

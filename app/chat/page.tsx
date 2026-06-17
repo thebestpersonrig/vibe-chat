@@ -114,9 +114,18 @@ export default function ChatPage() {
       })
       .subscribe();
 
+    const usersSub = supabase
+      .channel("users-changes")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, (payload) => {
+        const updated = payload.new as User;
+        setAllUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u));
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(roomSub);
       supabase.removeChannel(globalMsgSub);
+      supabase.removeChannel(usersSub);
     };
   }, [username]);
 
