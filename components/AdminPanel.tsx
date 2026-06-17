@@ -80,8 +80,8 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
   async function muteUser(username: string, minutes: number) {
     setSaving(true);
     const until = new Date(Date.now() + minutes * 60000).toISOString();
-    const { error } = await supabase.from("users").update({ muted_until: until }).eq("username", username);
-    if (error) console.error("Mute failed:", error);
+    const { data, error } = await supabase.from("users").update({ muted_until: until }).eq("username", username).select().single();
+    console.log("Mute result:", { username, until, data, error });
     onUpdate();
     setSaving(false);
   }
