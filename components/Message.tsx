@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia } from "@/lib/types";
@@ -13,6 +13,12 @@ interface MessageProps {
   isGrouped: boolean;
   isAdmin: boolean;
   senderTitle?: string | null;
+  replyMessage?: MessageType | null;
+  onReply?: (msg: MessageType) => void;
+  onEdit?: (id: string, newContent: string) => void;
+  onPin?: (id: string, pinned: boolean) => void;
+  onOpenProfile?: (username: string) => void;
+  onOpenLightbox?: (url: string) => void;
 }
 
 function timeAgo(dateString: string): string {
@@ -55,10 +61,18 @@ function renderTextContent(content: string, currentUser: string) {
   });
 }
 
-function MediaContent({ content }: { content: string }) {
+function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLightbox?: (url: string) => void }) {
   const media = detectMedia(content);
   if (media.type === "image")
-    return <a href={media.url} target="_blank" rel="noopener noreferrer"><img src={media.url} alt="" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover" loading="lazy" /></a>;
+    return (
+      <img
+        src={media.url}
+        alt=""
+        onClick={() => onOpenLightbox?.(media.url)}
+        className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover cursor-zoom-in"
+        loading="lazy"
+      />
+    );
   if (media.type === "gif")
     return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-64 ring-1 ring-border media-hover" loading="lazy" />;
   if (media.type === "video")
@@ -75,29 +89,70 @@ function MediaContent({ content }: { content: string }) {
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox }: MessageProps) {
+  const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLInputElement>(null);
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const canDelete = isOwn || isAdmin;
+  const canEdit = isOwn && !message.is_anonymous;
 
   const isAnon = message.is_anonymous;
-  const showReal = isAnon && (isOwn || isAdmin);
-  const displayName = isAnon && !showReal ? "Anonymous" : message.username;
-  const displayColor = isAnon && !showReal ? "#6B7280" : message.avatar_color;
-  const displayAvatar = isAnon && !showReal ? null : message.avatar_url;
+  const displayName = isAnon ? "Anonymous" : message.username;
+  const displayColor = isAnon ? "#6B7280" : message.avatar_color;
+  const displayAvatar = isAnon ? null : message.avatar_url;
+
+  useEffect(() => {
+    if (!showMenu) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+        setShowReactions(false);
+        setConfirmDelete(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showMenu]);
+
+  useEffect(() => {
+    if (isEditing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.setSelectionRange(editText.length, editText.length);
+    }
+  }, [isEditing]);
 
   async function toggleReaction(emoji: string) {
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
     if (existing) await supabase.from("reactions").delete().eq("id", existing.id);
     else await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
     setShowReactions(false);
+    setShowMenu(false);
   }
 
   async function deleteMessage() {
     await supabase.from("messages").delete().eq("id", message.id);
     setConfirmDelete(false);
+    setShowMenu(false);
+  }
+
+  function handleEditSave() {
+    const trimmed = editText.trim();
+    if (trimmed && trimmed !== message.content) {
+      onEdit?.(message.id, trimmed);
+    }
+    setIsEditing(false);
+    setShowMenu(false);
+  }
+
+  function handleEditKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); handleEditSave(); }
+    if (e.key === "Escape") { setIsEditing(false); setEditText(message.content); }
   }
 
   return (
@@ -110,26 +165,73 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
-        <motion.div whileHover={{ scale: 1.1 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
-          <Avatar username={isAnon && !showReal ? "?" : displayName} avatarColor={displayColor} avatarUrl={displayAvatar} size="md" className="mt-0.5" />
+        <motion.div
+          whileHover={{ scale: 1.1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          onClick={() => !isAnon && onOpenProfile?.(message.username)}
+          className={!isAnon ? "cursor-pointer" : ""}
+        >
+          <Avatar username={isAnon ? "?" : displayName} avatarColor={displayColor} avatarUrl={displayAvatar} size="md" className="mt-0.5" />
         </motion.div>
       )}
       <div className="flex-1 min-w-0">
         {!isGrouped && (
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <span className="text-[13px] font-semibold hover:underline cursor-default transition-colors" style={{ color: displayColor }}>{displayName}</span>
-            {isAnon && showReal && (
-              <span className="text-[9px] bg-muted/20 text-muted px-1.5 py-0.5 rounded-full">🎭 anon</span>
+            <span
+              onClick={() => !isAnon && onOpenProfile?.(message.username)}
+              className={`text-[13px] font-semibold transition-colors ${!isAnon ? "hover:underline cursor-pointer" : "cursor-default"}`}
+              style={{ color: displayColor }}
+            >
+              {displayName}
+            </span>
+            {message.is_pinned && (
+              <span className="text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">📌 pinned</span>
             )}
             {senderTitle && !isAnon && (
               <span className="text-[9px] bg-accent/10 text-accent/70 px-1.5 py-0.5 rounded-full border border-accent/15 font-medium">{senderTitle}</span>
             )}
-            <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>{timeAgo(message.created_at)}</span>
+            <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>
+              {timeAgo(message.created_at)}
+              {message.edited_at && <span className="ml-1 text-muted/30">(edited)</span>}
+            </span>
           </div>
         )}
-        {hasMedia ? <MediaContent content={message.content} /> : (
+
+        {/* Reply quote */}
+        {message.reply_to && replyMessage && (
+          <div className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm">
+            <span className="text-[10px] text-accent/60 font-medium">
+              {replyMessage.is_anonymous ? "Anonymous" : replyMessage.username}
+            </span>
+            <p className="text-[11px] text-muted/50 truncate">{replyMessage.content}</p>
+          </div>
+        )}
+        {message.reply_to && !replyMessage && (
+          <div className="mb-1.5 pl-3 border-l-2 border-border rounded-sm">
+            <p className="text-[11px] text-muted/30 italic">Original message deleted</p>
+          </div>
+        )}
+
+        {/* Message content or edit mode */}
+        {isEditing ? (
+          <div className="flex gap-2 items-center">
+            <input
+              ref={editRef}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              className="flex-1 bg-surface/80 border border-accent/30 rounded-lg px-3 py-1.5 text-[13.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition-all"
+            />
+            <button onClick={handleEditSave} className="text-[10px] text-accent font-medium cursor-pointer hover:text-accent-hover px-2 py-1 rounded-lg hover:bg-accent/10 transition-colors">Save</button>
+            <button onClick={() => { setIsEditing(false); setEditText(message.content); }} className="text-[10px] text-muted cursor-pointer hover:text-foreground px-2 py-1 rounded-lg hover:bg-surface-hover transition-colors">Cancel</button>
+          </div>
+        ) : hasMedia ? (
+          <MediaContent content={message.content} onOpenLightbox={onOpenLightbox} />
+        ) : (
           <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username)}</p>
         )}
+
+        {/* Reactions */}
         {grouped.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {grouped.map(({ emoji, users, count }) => {
@@ -151,43 +253,107 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           </div>
         )}
       </div>
-      <div className="relative shrink-0 self-center flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {canDelete && (
-          <>
-            <motion.button
-              onClick={() => setConfirmDelete(!confirmDelete)}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              className="text-muted hover:text-pink text-xs transition-colors cursor-pointer p-1.5 hover:bg-pink/10 rounded-lg"
-              title={isOwn ? "Delete" : "Delete (admin)"}
-            >
-              🗑️
-            </motion.button>
-            <AnimatePresence>
-              {confirmDelete && (
-                <motion.div initial={{ opacity: 0, scale: 0.85, y: 4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85, y: 4 }} className="absolute right-0 bottom-full mb-1.5 glass-strong rounded-xl p-3 z-10 flex items-center gap-2.5 whitespace-nowrap glow border border-pink/20">
-                  <span className="text-xs text-muted">Delete?</span>
-                  <button onClick={deleteMessage} className="text-xs text-pink hover:text-pink/80 cursor-pointer font-semibold px-2 py-0.5 rounded-md hover:bg-pink/10 transition-colors">Yes</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-muted hover:text-foreground cursor-pointer px-2 py-0.5 rounded-md hover:bg-surface-hover transition-colors">No</button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )}
+
+      {/* Action dropdown */}
+      <div className="relative shrink-0 self-start mt-1" ref={menuRef}>
         <motion.button
-          onClick={() => setShowReactions(!showReactions)}
-          whileHover={{ scale: 1.15 }}
+          onClick={() => { setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false); }}
           whileTap={{ scale: 0.9 }}
-          className="text-muted hover:text-foreground text-sm transition-colors cursor-pointer p-1.5 hover:bg-surface-hover rounded-lg"
+          className="text-muted/30 hover:text-muted text-sm transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover/50"
         >
-          😊
+          ⋯
         </motion.button>
+
         <AnimatePresence>
-          {showReactions && (
-            <motion.div initial={{ opacity: 0, scale: 0.85, y: 5 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85, y: 5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }} className="absolute right-0 bottom-full mb-1.5 glass-strong rounded-2xl p-2 flex gap-0.5 z-10 glow">
-              {REACTION_EMOJIS.map((emoji) => (
-                <motion.button key={emoji} onClick={() => toggleReaction(emoji)} whileHover={{ scale: 1.35, y: -3 }} whileTap={{ scale: 0.8 }} transition={{ type: "spring", stiffness: 500, damping: 15 }} className="text-lg cursor-pointer p-1.5 rounded-xl hover:bg-surface-hover transition-colors">{emoji}</motion.button>
-              ))}
+          {showMenu && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 top-full mt-1 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden"
+            >
+              {/* React */}
+              <button
+                onClick={() => setShowReactions(!showReactions)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"
+              >
+                <span className="text-sm">😊</span> React
+              </button>
+
+              {/* Reply */}
+              {onReply && (
+                <button
+                  onClick={() => { onReply(message); setShowMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <span className="text-sm">↩️</span> Reply
+                </button>
+              )}
+
+              {/* Edit */}
+              {canEdit && (
+                <button
+                  onClick={() => { setIsEditing(true); setEditText(message.content); setShowMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <span className="text-sm">✏️</span> Edit
+                </button>
+              )}
+
+              {/* Pin/Unpin */}
+              {isAdmin && onPin && (
+                <button
+                  onClick={() => { onPin(message.id, !message.is_pinned); setShowMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <span className="text-sm">📌</span> {message.is_pinned ? "Unpin" : "Pin"}
+                </button>
+              )}
+
+              {/* Delete */}
+              {canDelete && !confirmDelete && (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-pink/70 hover:bg-pink/10 hover:text-pink transition-colors cursor-pointer"
+                >
+                  <span className="text-sm">🗑️</span> Delete
+                </button>
+              )}
+              {confirmDelete && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-pink/5">
+                  <span className="text-[10px] text-pink">Delete?</span>
+                  <button onClick={deleteMessage} className="text-[10px] text-pink font-semibold cursor-pointer hover:text-pink/80">Yes</button>
+                  <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-muted cursor-pointer hover:text-foreground">No</button>
+                </div>
+              )}
+
+              {/* Reaction picker */}
+              <AnimatePresence>
+                {showReactions && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="border-t border-border overflow-hidden"
+                  >
+                    <div className="flex flex-wrap gap-0.5 p-2">
+                      {REACTION_EMOJIS.map((emoji) => (
+                        <motion.button
+                          key={emoji}
+                          onClick={() => toggleReaction(emoji)}
+                          whileHover={{ scale: 1.3, y: -2 }}
+                          whileTap={{ scale: 0.8 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                          className="text-lg cursor-pointer p-1 rounded-lg hover:bg-surface-hover transition-colors"
+                        >
+                          {emoji}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

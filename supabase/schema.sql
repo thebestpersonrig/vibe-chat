@@ -14,6 +14,7 @@ create table if not exists users (
   title text,
   balance integer default 0,
   muted_until timestamptz,
+  is_banned boolean default false,
   created_at timestamptz default now()
 );
 
@@ -44,6 +45,9 @@ create table if not exists messages (
   avatar_url text,
   content text not null,
   is_anonymous boolean default false,
+  edited_at timestamptz,
+  reply_to uuid references messages(id) on delete set null,
+  is_pinned boolean default false,
   created_at timestamptz default now()
 );
 

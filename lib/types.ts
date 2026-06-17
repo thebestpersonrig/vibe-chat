@@ -14,6 +14,9 @@ export interface Message {
   avatar_url?: string | null;
   content: string;
   is_anonymous?: boolean;
+  edited_at?: string | null;
+  reply_to?: string | null;
+  is_pinned?: boolean;
   created_at: string;
   reactions?: Reaction[];
 }
@@ -34,6 +37,7 @@ export interface User {
   title?: string | null;
   balance?: number;
   muted_until?: string | null;
+  is_banned?: boolean;
   created_at: string;
 }
 

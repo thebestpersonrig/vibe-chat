@@ -92,6 +92,13 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
     setSaving(false);
   }
 
+  async function toggleBan(user: User) {
+    setSaving(true);
+    await supabase.from("users").update({ is_banned: !user.is_banned }).eq("username", user.username);
+    onUpdate();
+    setSaving(false);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -127,11 +134,12 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                 >
                   <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-medium truncate">{user.username}</span>
                       {user.is_admin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
                       {user.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border truncate max-w-[100px]">{user.title}</span>}
                       {muteStatus.muted && <span className="text-[9px] bg-pink/15 text-pink px-1.5 py-0.5 rounded-full font-medium">🔇 {muteStatus.remaining}</span>}
+                      {user.is_banned && <span className="text-[9px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded-full font-bold">BANNED</span>}
                     </div>
                     <span className="text-[10px] text-muted/50">💰 {user.balance || 0}</span>
                   </div>
@@ -232,6 +240,21 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                             )}
                           </div>
                         </div>
+
+                        {!user.is_admin && (
+                          <div>
+                            <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
+                              Ban
+                            </label>
+                            <button
+                              onClick={() => toggleBan(user)}
+                              disabled={saving}
+                              className={`text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50 ${user.is_banned ? "bg-emerald/20 hover:bg-emerald/30 text-emerald" : "bg-red-500/15 hover:bg-red-500/25 text-red-400"}`}
+                            >
+                              {user.is_banned ? "Unban User" : "Ban User"}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
