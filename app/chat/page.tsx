@@ -77,8 +77,15 @@ export default function ChatPage() {
 
     const roomSub = supabase
       .channel("rooms-changes")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "rooms" }, (payload) => {
-        setRooms((prev) => [...prev, payload.new as Room]);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "rooms" }, async (payload) => {
+        const room = payload.new as Room;
+        if (room.type === "dm") {
+          const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
+          if (!members?.some((m) => m.username === username)) return;
+          const other = members.find((m) => m.username !== username);
+          if (other) setDmNames((prev) => ({ ...prev, [room.id]: other.username }));
+        }
+        setRooms((prev) => [...prev, room]);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
         const deletedId = (payload.old as { id: string }).id;
@@ -321,8 +328,10 @@ export default function ChatPage() {
   }
 
   async function handleStartDm(targetUser: string) {
-    const { data: myRooms } = await supabase.from("room_members").select("room_id").eq("username", username);
-    const { data: theirRooms } = await supabase.from("room_members").select("room_id").eq("username", targetUser);
+    const { data: myRooms, error: e1 } = await supabase.from("room_members").select("room_id").eq("username", username);
+    const { data: theirRooms, error: e2 } = await supabase.from("room_members").select("room_id").eq("username", targetUser);
+
+    if (e1 || e2) console.error("DM lookup failed:", e1?.message || e2?.message);
 
     if (myRooms && theirRooms) {
       const myRoomIds = new Set(myRooms.map((r) => r.room_id));
@@ -334,12 +343,14 @@ export default function ChatPage() {
     }
 
     const { data: room, error } = await supabase.from("rooms").insert({ name: `${username}-${targetUser}`, emoji: "💬", type: "dm" }).select().single();
-    if (error || !room) return;
+    if (error) { console.error("DM create failed:", error.message); return; }
+    if (!room) return;
 
-    await supabase.from("room_members").insert([
+    const { error: memberErr } = await supabase.from("room_members").insert([
       { room_id: room.id, username },
       { room_id: room.id, username: targetUser },
     ]);
+    if (memberErr) console.error("DM members insert failed:", memberErr.message);
 
     setDmNames((prev) => ({ ...prev, [room.id]: targetUser }));
     setRooms((prev) => [...prev, room]);
