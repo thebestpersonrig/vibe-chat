@@ -148,6 +148,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!activeRoom || !username) return;
+    setMessages([]);
     loadMessages(activeRoom.id);
     setNewMsgCount(0);
     setUnreadCounts((prev) => ({ ...prev, [activeRoom.id]: 0 }));
@@ -175,7 +176,7 @@ export default function ChatPage() {
           setNewMsgCount((c) => c + 1);
         }
       })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages", filter: `room_id=eq.${activeRoom.id}` }, (payload) => {
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
         setMessages((prev) => prev.filter((m) => m.id !== (payload.old as { id: string }).id));
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, (payload) => {
