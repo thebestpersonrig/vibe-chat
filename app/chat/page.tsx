@@ -163,11 +163,7 @@ export default function ChatPage() {
 
   async function loadAllUsers() {
     const { data } = await supabase.from("users").select("*").order("username");
-    if (data) {
-      setAllUsers(data);
-      const me = data.find((u: User) => u.username === username);
-      if (me) console.log("My user data:", { username: me.username, muted_until: me.muted_until });
-    }
+    if (data) setAllUsers(data);
   }
 
   useEffect(() => {
