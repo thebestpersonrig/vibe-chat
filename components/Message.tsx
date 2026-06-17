@@ -11,6 +11,7 @@ interface MessageProps {
   isOwn: boolean;
   username: string;
   isGrouped: boolean;
+  isAdmin: boolean;
 }
 
 function timeAgo(dateString: string): string {
@@ -73,11 +74,12 @@ function MediaContent({ content }: { content: string }) {
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin }: MessageProps) {
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
+  const canDelete = isOwn || isAdmin;
 
   async function toggleReaction(emoji: string) {
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
@@ -137,14 +139,14 @@ export default function Message({ message, isOwn, username, isGrouped }: Message
         )}
       </div>
       <div className="relative shrink-0 self-center flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {isOwn && (
+        {canDelete && (
           <>
             <motion.button
               onClick={() => setConfirmDelete(!confirmDelete)}
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
               className="text-muted hover:text-pink text-xs transition-colors cursor-pointer p-1.5 hover:bg-pink/10 rounded-lg"
-              title="Delete"
+              title={isOwn ? "Delete" : "Delete (admin)"}
             >
               🗑️
             </motion.button>

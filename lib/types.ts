@@ -2,6 +2,7 @@ export interface Room {
   id: string;
   name: string;
   emoji: string;
+  type: "group" | "dm";
   created_at: string;
 }
 
@@ -28,7 +29,13 @@ export interface User {
   username: string;
   avatar_color: string;
   avatar_url?: string | null;
+  is_admin?: boolean;
   created_at: string;
+}
+
+export interface RoomMember {
+  room_id: string;
+  username: string;
 }
 
 export interface UserPresence {

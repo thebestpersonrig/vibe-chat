@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
-import { Room, ROOM_EMOJIS } from "@/lib/types";
+import { Room, User, ROOM_EMOJIS } from "@/lib/types";
 import Avatar from "@/components/Avatar";
 
 interface SidebarProps {
@@ -13,30 +13,45 @@ interface SidebarProps {
   username: string;
   avatarColor: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
+  allUsers: User[];
   onAvatarChange: (url: string) => void;
   onLogout: () => void;
   onDeleteAccount: () => void;
+  onDeleteRoom: (roomId: string) => void;
+  onStartDm: (targetUser: string) => void;
   unreadCounts: Record<string, number>;
+  dmNames: Record<string, string>;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, onAvatarChange, onLogout, onDeleteAccount, unreadCounts, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, unreadCounts, dmNames, isOpen, onClose }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
+  const [showDmPicker, setShowDmPicker] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("💬");
   const [creating, setCreating] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState<string | null>(null);
+  const [dmSearch, setDmSearch] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const groupRooms = rooms.filter((r) => r.type !== "dm");
+  const dmRooms = rooms.filter((r) => r.type === "dm");
+
+  const dmableUsers = allUsers.filter(
+    (u) => u.username !== username && u.username.toLowerCase().includes(dmSearch.toLowerCase())
+  );
 
   async function handleCreateRoom(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = newRoomName.trim();
     if (!trimmed || creating) return;
     setCreating(true);
-    const { data, error } = await supabase.from("rooms").insert({ name: trimmed, emoji: selectedEmoji }).select().single();
+    const { data, error } = await supabase.from("rooms").insert({ name: trimmed, emoji: selectedEmoji, type: "group" }).select().single();
     if (!error && data) { onSelectRoom(data); setNewRoomName(""); setShowCreate(false); onClose(); }
     setCreating(false);
   }
@@ -45,19 +60,13 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarError("");
-    if (file.size > 5 * 1024 * 1024) {
-      setAvatarError("Max 5MB");
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { setAvatarError("Max 5MB"); return; }
     setUploadingAvatar(true);
     const url = await uploadImage(file);
     if (url) {
       const { error } = await supabase.from("users").update({ avatar_url: url }).eq("username", username);
-      if (error) {
-        setAvatarError("Failed to save");
-      } else {
-        onAvatarChange(url);
-      }
+      if (error) setAvatarError("Failed to save");
+      else onAvatarChange(url);
     } else {
       setAvatarError("Upload failed — see console");
     }
@@ -66,6 +75,10 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   }
 
   function handleRoomClick(room: Room) { onSelectRoom(room); onClose(); }
+
+  function getDmDisplayName(room: Room) {
+    return dmNames[room.id] || room.name;
+  }
 
   return (
     <>
@@ -82,8 +95,69 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           <button onClick={onClose} className="md:hidden text-muted hover:text-foreground cursor-pointer text-lg transition-colors">✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-0.5">
-          <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {/* DMs Section */}
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[10px] font-bold text-muted/60 uppercase tracking-[0.15em]">Direct Messages</span>
+            <motion.button
+              onClick={() => { setShowDmPicker(!showDmPicker); setDmSearch(""); }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className="w-6 h-6 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent flex items-center justify-center transition-colors cursor-pointer text-sm"
+            >
+              {showDmPicker ? "×" : "+"}
+            </motion.button>
+          </div>
+
+          <AnimatePresence>
+            {showDmPicker && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="bg-surface/80 rounded-xl p-3 mb-2 border border-border glow">
+                  <div className="input-glow rounded-lg transition-all mb-2">
+                    <input type="text" value={dmSearch} onChange={(e) => setDmSearch(e.target.value)} placeholder="Search users..." autoFocus className="w-full bg-background/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/40 focus:outline-none transition-all" />
+                  </div>
+                  <div className="max-h-36 overflow-y-auto space-y-0.5">
+                    {dmableUsers.map((user) => (
+                      <button key={user.username} onClick={() => { onStartDm(user.username); setShowDmPicker(false); onClose(); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-hover/50 transition-all cursor-pointer text-left">
+                        <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" />
+                        <span className="text-xs truncate">{user.username}</span>
+                      </button>
+                    ))}
+                    {dmableUsers.length === 0 && <p className="text-muted/40 text-xs text-center py-2">No users found</p>}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {dmRooms.map((room) => {
+            const unread = unreadCounts[room.id] || 0;
+            const isActive = activeRoomId === room.id;
+            const displayName = getDmDisplayName(room);
+            const otherUser = allUsers.find((u) => u.username === displayName);
+            return (
+              <motion.button
+                key={room.id}
+                onClick={() => handleRoomClick(room)}
+                whileTap={{ scale: 0.97 }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent"}`}
+              >
+                <Avatar username={displayName} avatarColor={otherUser?.avatar_color || "#8B5CF6"} avatarUrl={otherUser?.avatar_url} size="sm" />
+                <span className="text-sm font-medium truncate flex-1">{displayName}</span>
+                {unread > 0 && !isActive && (
+                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
+                    {unread > 99 ? "99+" : unread}
+                  </motion.span>
+                )}
+              </motion.button>
+            );
+          })}
+          {dmRooms.length === 0 && !showDmPicker && <p className="text-muted/40 text-[11px] text-center py-3">No DMs yet</p>}
+
+          <div className="divider-glow my-3" />
+
+          {/* Rooms Section */}
+          <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-[10px] font-bold text-muted/60 uppercase tracking-[0.15em]">Rooms</span>
             <motion.button
               onClick={() => setShowCreate(!showCreate)}
@@ -113,31 +187,48 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             )}
           </AnimatePresence>
 
-          {rooms.map((room) => {
+          {groupRooms.map((room) => {
             const unread = unreadCounts[room.id] || 0;
             const isActive = activeRoomId === room.id;
             return (
-              <motion.button
-                key={room.id}
-                onClick={() => handleRoomClick(room)}
-                whileTap={{ scale: 0.97 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent"}`}
-              >
-                <span className={`text-lg transition-transform ${isActive ? "scale-110" : ""}`}>{room.emoji}</span>
-                <span className="text-sm font-medium truncate flex-1">{room.name}</span>
-                {unread > 0 && !isActive && (
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20"
+              <div key={room.id} className="group/room relative">
+                <motion.button
+                  onClick={() => handleRoomClick(room)}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent"}`}
+                >
+                  <span className={`text-lg transition-transform ${isActive ? "scale-110" : ""}`}>{room.emoji}</span>
+                  <span className="text-sm font-medium truncate flex-1">{room.name}</span>
+                  {unread > 0 && !isActive && (
+                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
+                      {unread > 99 ? "99+" : unread}
+                    </motion.span>
+                  )}
+                </motion.button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setConfirmDeleteRoom(confirmDeleteRoom === room.id ? null : room.id)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/room:opacity-100 text-muted hover:text-pink text-[10px] p-1 rounded transition-all cursor-pointer"
+                    title="Delete room"
                   >
-                    {unread > 99 ? "99+" : unread}
-                  </motion.span>
+                    🗑️
+                  </button>
                 )}
-              </motion.button>
+                <AnimatePresence>
+                  {confirmDeleteRoom === room.id && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="mx-2 mb-1 p-2 rounded-lg bg-pink/10 border border-pink/20 flex items-center gap-2">
+                        <span className="text-[10px] text-pink">Delete room?</span>
+                        <button onClick={() => { onDeleteRoom(room.id); setConfirmDeleteRoom(null); }} className="text-[10px] text-pink font-semibold cursor-pointer hover:text-pink/80">Yes</button>
+                        <button onClick={() => setConfirmDeleteRoom(null)} className="text-[10px] text-muted cursor-pointer hover:text-foreground">No</button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             );
           })}
-          {rooms.length === 0 && <p className="text-muted/40 text-xs text-center py-8">No rooms yet — create one!</p>}
+          {groupRooms.length === 0 && <p className="text-muted/40 text-xs text-center py-4">No rooms yet — create one!</p>}
         </div>
 
         <div className="p-3 border-t border-border">
@@ -150,7 +241,10 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
               </div>
             </button>
             <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium truncate block">{username}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium truncate">{username}</span>
+                {isAdmin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
+              </div>
               {avatarError ? (
                 <span className="text-[10px] text-pink">{avatarError}</span>
               ) : (

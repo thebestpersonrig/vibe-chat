@@ -17,6 +17,7 @@ export default function ChatPage() {
   const [username, setUsername] = useState("");
   const [avatarColor, setAvatarColor] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<MessageType[]>([]);
@@ -36,6 +37,7 @@ export default function ChatPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginIsNew, setLoginIsNew] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [dmNames, setDmNames] = useState<Record<string, string>>({});
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -52,7 +54,7 @@ export default function ChatPage() {
       const stored = localStorage.getItem("rpb-user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        const { data } = await supabase.from("users").select("username").eq("username", parsed.username).single();
+        const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
         if (!data) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
@@ -61,6 +63,7 @@ export default function ChatPage() {
         setUsername(parsed.username);
         setAvatarColor(parsed.avatarColor);
         setAvatarUrl(parsed.avatarUrl || null);
+        setIsAdmin(data.is_admin || false);
       }
       setLoading(false);
     }
@@ -76,6 +79,11 @@ export default function ChatPage() {
       .channel("rooms-changes")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "rooms" }, (payload) => {
         setRooms((prev) => [...prev, payload.new as Room]);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
+        const deletedId = (payload.old as { id: string }).id;
+        setRooms((prev) => prev.filter((r) => r.id !== deletedId));
+        setActiveRoom((prev) => prev?.id === deletedId ? null : prev);
       })
       .subscribe();
 
@@ -99,12 +107,30 @@ export default function ChatPage() {
 
   async function loadRooms() {
     const { data } = await supabase.from("rooms").select("*").order("created_at");
-    if (data) {
-      setRooms(data);
-      if (!hasSetInitialRoom.current && data.length > 0) {
-        hasSetInitialRoom.current = true;
-        setActiveRoom(data[0]);
+    if (!data) return;
+
+    const { data: members } = await supabase.from("room_members").select("*");
+    const myDmRoomIds = new Set(
+      (members || []).filter((m) => m.username === username).map((m) => m.room_id)
+    );
+
+    const visible = data.filter((r) => r.type !== "dm" || myDmRoomIds.has(r.id));
+
+    const names: Record<string, string> = {};
+    for (const room of visible) {
+      if (room.type === "dm") {
+        const roomMembers = (members || []).filter((m) => m.room_id === room.id);
+        const other = roomMembers.find((m) => m.username !== username);
+        names[room.id] = other?.username || room.name;
       }
+    }
+    setDmNames(names);
+    setRooms(visible);
+
+    if (!hasSetInitialRoom.current && visible.length > 0) {
+      hasSetInitialRoom.current = true;
+      const firstGroup = visible.find((r) => r.type !== "dm");
+      setActiveRoom(firstGroup || visible[0]);
     }
   }
 
@@ -294,6 +320,39 @@ export default function ChatPage() {
     return new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime() < 120000;
   }
 
+  async function handleStartDm(targetUser: string) {
+    const { data: myRooms } = await supabase.from("room_members").select("room_id").eq("username", username);
+    const { data: theirRooms } = await supabase.from("room_members").select("room_id").eq("username", targetUser);
+
+    if (myRooms && theirRooms) {
+      const myRoomIds = new Set(myRooms.map((r) => r.room_id));
+      const overlap = theirRooms.find((r) => myRoomIds.has(r.room_id));
+      if (overlap) {
+        const existing = rooms.find((r) => r.id === overlap.room_id && r.type === "dm");
+        if (existing) { setActiveRoom(existing); return; }
+      }
+    }
+
+    const { data: room, error } = await supabase.from("rooms").insert({ name: `${username}-${targetUser}`, emoji: "💬", type: "dm" }).select().single();
+    if (error || !room) return;
+
+    await supabase.from("room_members").insert([
+      { room_id: room.id, username },
+      { room_id: room.id, username: targetUser },
+    ]);
+
+    setDmNames((prev) => ({ ...prev, [room.id]: targetUser }));
+    setRooms((prev) => [...prev, room]);
+    setActiveRoom(room);
+  }
+
+  async function handleDeleteRoom(roomId: string) {
+    if (!isAdmin) return;
+    await supabase.from("rooms").delete().eq("id", roomId);
+    if (activeRoom?.id === roomId) setActiveRoom(null);
+    setRooms((prev) => prev.filter((r) => r.id !== roomId));
+  }
+
   async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -344,6 +403,7 @@ export default function ChatPage() {
       setUsername(loginUsername);
       setAvatarColor(color);
       setAvatarUrl(null);
+      setIsAdmin(false);
     } else {
       const { data: existing } = await supabase
         .from("users")
@@ -365,6 +425,7 @@ export default function ChatPage() {
       setUsername(existing.username);
       setAvatarColor(existing.avatar_color);
       setAvatarUrl(existing.avatar_url || null);
+      setIsAdmin(existing.is_admin || false);
     }
 
     setLoginChecking(false);
@@ -376,6 +437,7 @@ export default function ChatPage() {
     setUsername("");
     setAvatarColor("");
     setAvatarUrl(null);
+    setIsAdmin(false);
     setActiveRoom(null);
     setMessages([]);
     hasSetInitialRoom.current = false;
@@ -397,6 +459,12 @@ export default function ChatPage() {
   }
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+
+  const activeRoomDisplayName = activeRoom?.type === "dm"
+    ? dmNames[activeRoom.id] || activeRoom.name
+    : activeRoom?.name;
+
+  const activeRoomDisplayEmoji = activeRoom?.type === "dm" ? "💬" : activeRoom?.emoji;
 
   if (loading) {
     return (
@@ -462,7 +530,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} unreadCounts={unreadCounts} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         <div className="glass-strong px-4 py-3.5 flex items-center justify-between shrink-0 relative">
@@ -478,20 +546,35 @@ export default function ChatPage() {
             </button>
             {activeRoom && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5">
-                <span className="text-xl">{activeRoom.emoji}</span>
+                <span className="text-xl">{activeRoomDisplayEmoji}</span>
                 <div>
-                  <h2 className="font-semibold text-foreground text-sm leading-tight">{activeRoom.name}</h2>
+                  <h2 className="font-semibold text-foreground text-sm leading-tight">
+                    {activeRoom.type === "dm" ? activeRoomDisplayName : `${activeRoomDisplayName}`}
+                  </h2>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-emerald rounded-full online-pulse" />
-                    <span className="text-[10px] text-muted">{onlineUsers.length} online</span>
+                    <span className="text-[10px] text-muted">
+                      {activeRoom.type === "dm" ? "Direct Message" : `${onlineUsers.length} online`}
+                    </span>
                   </div>
                 </div>
               </motion.div>
             )}
           </div>
-          {activeRoom && (
-            <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
-          )}
+          <div className="flex items-center gap-2">
+            {activeRoom && isAdmin && activeRoom.type !== "dm" && (
+              <button
+                onClick={() => handleDeleteRoom(activeRoom.id)}
+                className="text-muted hover:text-pink text-xs transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-pink/10"
+                title="Delete room (admin)"
+              >
+                🗑️
+              </button>
+            )}
+            {activeRoom && (
+              <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -501,8 +584,10 @@ export default function ChatPage() {
                 <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-4 messages-fade-top">
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-fade-in-up">
-                      <motion.span className="text-6xl mb-5 gentle-float inline-block" >{activeRoom.emoji}</motion.span>
-                      <h3 className="text-2xl font-bold gradient-text mb-2">Welcome to #{activeRoom.name}</h3>
+                      <motion.span className="text-6xl mb-5 gentle-float inline-block" >{activeRoomDisplayEmoji}</motion.span>
+                      <h3 className="text-2xl font-bold gradient-text mb-2">
+                        {activeRoom.type === "dm" ? `Chat with ${activeRoomDisplayName}` : `Welcome to #${activeRoomDisplayName}`}
+                      </h3>
                       <p className="text-muted/50 text-sm">Be the first to send a message!</p>
                       <div className="mt-4 flex gap-1">
                         {["💬", "🎉", "👋"].map((e, i) => (
@@ -512,7 +597,7 @@ export default function ChatPage() {
                     </div>
                   )}
                   {messages.map((msg, i) => (
-                    <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} />
+                    <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} isAdmin={isAdmin} />
                   ))}
                 </div>
 
@@ -559,7 +644,7 @@ export default function ChatPage() {
                       GIF
                     </motion.button>
 
-                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={`Message #${activeRoom.name}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
+                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
                     <motion.button
                       onClick={sendMessage}
                       disabled={!newMessage.trim()}
@@ -593,7 +678,7 @@ export default function ChatPage() {
             )}
           </div>
 
-          {activeRoom && (
+          {activeRoom && activeRoom.type !== "dm" && (
             <div className="hidden lg:block w-56 border-l border-border">
               <OnlineUsers users={onlineUsers} />
             </div>

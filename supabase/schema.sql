@@ -10,6 +10,7 @@ create table if not exists users (
   avatar_color text not null,
   avatar_url text,
   password_hash text,
+  is_admin boolean default false,
   created_at timestamptz default now()
 );
 
@@ -18,7 +19,17 @@ create table if not exists rooms (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   emoji text not null default '💬',
+  type text not null default 'group',
   created_at timestamptz default now()
+);
+
+-- Room members (for DMs)
+create table if not exists room_members (
+  id uuid default gen_random_uuid() primary key,
+  room_id uuid references rooms(id) on delete cascade not null,
+  username text not null,
+  created_at timestamptz default now(),
+  unique(room_id, username)
 );
 
 -- Messages table
@@ -46,12 +57,15 @@ create table if not exists reactions (
 create index if not exists idx_messages_room_id on messages(room_id);
 create index if not exists idx_messages_created_at on messages(created_at);
 create index if not exists idx_reactions_message_id on reactions(message_id);
+create index if not exists idx_room_members_room_id on room_members(room_id);
+create index if not exists idx_room_members_username on room_members(username);
 
 -- Enable Row Level Security (permissive for guest access)
 alter table users enable row level security;
 alter table rooms enable row level security;
 alter table messages enable row level security;
 alter table reactions enable row level security;
+alter table room_members enable row level security;
 
 -- Policies
 create policy "Anyone can read users" on users for select using (true);
@@ -61,6 +75,7 @@ create policy "Anyone can delete own account" on users for delete using (true);
 
 create policy "Anyone can read rooms" on rooms for select using (true);
 create policy "Anyone can create rooms" on rooms for insert with check (true);
+create policy "Anyone can delete rooms" on rooms for delete using (true);
 
 create policy "Anyone can read messages" on messages for select using (true);
 create policy "Anyone can send messages" on messages for insert with check (true);
@@ -69,6 +84,10 @@ create policy "Anyone can delete own messages" on messages for delete using (tru
 create policy "Anyone can read reactions" on reactions for select using (true);
 create policy "Anyone can add reactions" on reactions for insert with check (true);
 create policy "Anyone can remove reactions" on reactions for delete using (true);
+
+create policy "Anyone can read room_members" on room_members for select using (true);
+create policy "Anyone can add room_members" on room_members for insert with check (true);
+create policy "Anyone can delete room_members" on room_members for delete using (true);
 
 -- Enable Realtime on tables
 alter publication supabase_realtime add table messages;
@@ -81,21 +100,13 @@ create or replace function cleanup_old_messages() returns void as $$
   delete from messages where created_at < now() - interval '24 hours';
 $$ language sql security definer;
 
--- To enable automatic cleanup every hour, enable pg_cron in Supabase Dashboard
--- (Database > Extensions > pg_cron), then run:
--- select cron.schedule('cleanup-messages', '0 * * * *', 'select cleanup_old_messages()');
-
 -- Seed a default room
-insert into rooms (name, emoji) values ('General', '💬')
+insert into rooms (name, emoji, type) values ('General', '💬', 'group')
 on conflict do nothing;
 
 -- ============================================
--- Storage Setup (run AFTER creating the bucket)
+-- Storage Setup
 -- ============================================
--- 1. Go to Storage in Supabase Dashboard
--- 2. Create a new bucket called "media" with Public = ON
--- 3. Then run the policies below:
-
 insert into storage.buckets (id, name, public)
 values ('media', 'media', true)
 on conflict (id) do nothing;
