@@ -36,7 +36,7 @@ export interface User {
   avatar_url?: string | null;
   is_admin?: boolean;
   title?: string | null;
-  balance?: number;
+
   muted_until?: string | null;
   status_emoji?: string | null;
   status_text?: string | null;

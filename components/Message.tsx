@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
-import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll } from "@/lib/types";
+import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll, CustomEmoji } from "@/lib/types";
 import Avatar from "@/components/Avatar";
 import LinkPreview from "@/components/LinkPreview";
 import AudioPlayer from "@/components/AudioPlayer";
@@ -24,6 +24,8 @@ interface MessageProps {
   onOpenLightbox?: (url: string) => void;
   isMuted?: boolean;
   pollData?: Poll | null;
+  customEmojis?: CustomEmoji[];
+  allUsernames?: string[];
 }
 
 function timeAgo(dateString: string): string {
@@ -47,8 +49,34 @@ function groupReactions(reactions: Reaction[]): { emoji: string; users: string[]
   return Array.from(map.entries()).map(([emoji, users]) => ({ emoji, users, count: users.length }));
 }
 
-function renderTextContent(content: string, currentUser: string) {
-  const tokens = content.split(/((?:https?:\/\/[^\s<]+[^\s<.,;:!?"'\])}>])|@\w+)/g);
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isEmojiOnly(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 20) return false;
+  return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}️‍]+$/u.test(trimmed);
+}
+
+function renderTextContent(content: string, currentUser: string, allUsernames?: string[], customEmojis?: CustomEmoji[]) {
+  const urlPart = "(?:https?:\\/\\/[^\\s<]+[^\\s<.,;:!?\"'\\])}>])";
+  const parts = [urlPart];
+
+  if (allUsernames && allUsernames.length > 0) {
+    const sorted = [...allUsernames].sort((a, b) => b.length - a.length);
+    parts.push("(?:" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
+  } else {
+    parts.push("@\\w+");
+  }
+
+  if (customEmojis && customEmojis.length > 0) {
+    parts.push(":(?:" + customEmojis.map((e) => escapeRegex(e.name)).join("|") + "):");
+  }
+
+  const regex = new RegExp("(" + parts.join("|") + ")", "gi");
+  const tokens = content.split(regex).filter(Boolean);
+
   return tokens.map((token, i) => {
     if (token.startsWith("@")) {
       const mentioned = token.slice(1);
@@ -61,6 +89,13 @@ function renderTextContent(content: string, currentUser: string) {
     }
     if (/^https?:\/\//.test(token)) {
       return <a key={i} href={token} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-blue hover:underline break-all transition-colors">{token}</a>;
+    }
+    if (customEmojis && /^:[^:]+:$/.test(token)) {
+      const name = token.slice(1, -1);
+      const emoji = customEmojis.find((e) => e.name.toLowerCase() === name.toLowerCase());
+      if (emoji) {
+        return <img key={i} src={emoji.url} alt={token} title={token} className="inline-block w-6 h-6 object-contain align-text-bottom mx-0.5" />;
+      }
     }
     return token;
   });
@@ -101,7 +136,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, isMuted, pollData }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -112,7 +147,10 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
-  const firstUrl = !hasMedia && !isPoll ? extractFirstUrl(message.content) : null;
+  const stickerMatch = message.content.trim().match(/^\[sticker:(.+)\]$/);
+  const stickerUrl = stickerMatch?.[1] || null;
+  const emojiOnly = !hasMedia && !isPoll && !stickerUrl && isEmojiOnly(message.content);
+  const firstUrl = !hasMedia && !isPoll && !stickerUrl && !emojiOnly ? extractFirstUrl(message.content) : null;
   const canDelete = isOwn || isAdmin;
   const canEdit = isOwn && !message.is_anonymous;
 
@@ -212,7 +250,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           </div>
         )}
 
-        {/* Reply quote */}
         {message.reply_to && replyMessage && (
           <div className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm">
             <span className="text-[10px] text-accent/60 font-medium">
@@ -227,7 +264,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           </div>
         )}
 
-        {/* Message content or edit mode */}
         {isEditing ? (
           <div className="flex gap-2 items-center">
             <input
@@ -244,14 +280,17 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           <PollDisplay poll={pollData} username={username} />
         ) : hasMedia ? (
           <MediaContent content={message.content} onOpenLightbox={onOpenLightbox} />
+        ) : stickerUrl ? (
+          <img src={stickerUrl} alt="Sticker" className="w-32 h-32 object-contain sticker-pop" />
+        ) : emojiOnly ? (
+          <p className="text-5xl leading-tight py-1 sticker-pop">{message.content.trim()}</p>
         ) : (
           <>
-            <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username)}</p>
+            <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username, allUsernames, customEmojis)}</p>
             {firstUrl && <LinkPreview url={firstUrl} />}
           </>
         )}
 
-        {/* Reactions */}
         {grouped.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {grouped.map(({ emoji, users, count }) => {
@@ -274,7 +313,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         )}
       </div>
 
-      {/* Action dropdown */}
       <div className="relative shrink-0 self-start mt-1" ref={menuRef}>
         <motion.button
           onClick={() => { setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false); }}
@@ -293,7 +331,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
               transition={{ duration: 0.15 }}
               className="absolute right-0 top-full mt-1 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden"
             >
-              {/* React */}
               <button
                 onClick={() => setShowReactions(!showReactions)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"
@@ -301,7 +338,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                 <span className="text-sm">😊</span> React
               </button>
 
-              {/* Reply */}
               {onReply && !message.id.startsWith("temp-") && (
                 <button
                   onClick={() => { onReply(message); setShowMenu(false); }}
@@ -311,7 +347,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                 </button>
               )}
 
-              {/* Edit */}
               {canEdit && (
                 <button
                   onClick={() => { setIsEditing(true); setEditText(message.content); setShowMenu(false); }}
@@ -321,7 +356,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                 </button>
               )}
 
-              {/* Pin/Unpin */}
               {isAdmin && onPin && (
                 <button
                   onClick={() => { onPin(message.id, !message.is_pinned); setShowMenu(false); }}
@@ -331,7 +365,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                 </button>
               )}
 
-              {/* Delete */}
               {canDelete && !confirmDelete && (
                 <button
                   onClick={() => setConfirmDelete(true)}
@@ -348,7 +381,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                 </div>
               )}
 
-              {/* Reaction picker */}
               <AnimatePresence>
                 {showReactions && (
                   <motion.div

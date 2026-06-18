@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
+import { CustomEmoji } from "@/lib/types";
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
+  customEmojis?: CustomEmoji[];
 }
 
 const EMOJIS: Record<string, string[]> = {
@@ -16,8 +18,12 @@ const EMOJIS: Record<string, string[]> = {
   "🍕": ["🍕", "🍔", "🍟", "🌮", "🍩", "☕", "🍿", "🧁", "🍰", "🍎", "🍗", "🥤", "🍺", "🧃"],
 };
 
-export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
-  const [activeTab, setActiveTab] = useState(Object.keys(EMOJIS)[0]);
+const BASE_TABS = Object.keys(EMOJIS);
+
+export default function EmojiPicker({ onSelect, onClose, customEmojis }: EmojiPickerProps) {
+  const hasCustom = customEmojis && customEmojis.length > 0;
+  const tabs = hasCustom ? [...BASE_TABS, "⭐"] : BASE_TABS;
+  const [activeTab, setActiveTab] = useState(BASE_TABS[0]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,6 +34,8 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
+  const isCustomTab = activeTab === "⭐";
+
   return (
     <motion.div
       ref={containerRef}
@@ -37,7 +45,7 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       className="absolute bottom-full mb-2 left-0 w-72 glass-strong rounded-2xl overflow-hidden z-30 glow"
     >
       <div className="flex gap-0.5 p-1.5 border-b border-border">
-        {Object.keys(EMOJIS).map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -48,19 +56,36 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
         ))}
       </div>
       <div className="p-2 h-48 overflow-y-auto">
-        <div className="grid grid-cols-8 gap-0.5">
-          {EMOJIS[activeTab].map((emoji) => (
-            <motion.button
-              key={emoji}
-              onClick={() => onSelect(emoji)}
-              whileHover={{ scale: 1.3 }}
-              whileTap={{ scale: 0.8 }}
-              className="text-lg p-1 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors text-center"
-            >
-              {emoji}
-            </motion.button>
-          ))}
-        </div>
+        {isCustomTab && customEmojis ? (
+          <div className="grid grid-cols-6 gap-1">
+            {customEmojis.map((ce) => (
+              <motion.button
+                key={ce.id}
+                onClick={() => onSelect(`:${ce.name}:`)}
+                whileHover={{ scale: 1.2 }}
+                whileTap={{ scale: 0.8 }}
+                className="p-1 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors flex items-center justify-center"
+                title={`:${ce.name}:`}
+              >
+                <img src={ce.url} alt={ce.name} className="w-7 h-7 object-contain" />
+              </motion.button>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-8 gap-0.5">
+            {(EMOJIS[activeTab] || []).map((emoji) => (
+              <motion.button
+                key={emoji}
+                onClick={() => onSelect(emoji)}
+                whileHover={{ scale: 1.3 }}
+                whileTap={{ scale: 0.8 }}
+                className="text-lg p-1 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors text-center"
+              >
+                {emoji}
+              </motion.button>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );

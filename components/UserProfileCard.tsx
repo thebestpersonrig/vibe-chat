@@ -54,14 +54,10 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser 
             <p className="text-xs text-muted/60 mt-1">{user.status_emoji} {user.status_text || ""}</p>
           )}
 
-          <div className="mt-4 flex justify-center gap-6">
-            <div className="text-center">
-              <span className="text-lg block">💰</span>
-              <span className="text-xs text-muted">{user.balance || 0}</span>
-            </div>
+          <div className="mt-4 flex justify-center">
             <div className="text-center">
               <span className="text-lg block">📅</span>
-              <span className="text-xs text-muted">{joinDate}</span>
+              <span className="text-xs text-muted">Joined {joinDate}</span>
             </div>
           </div>
 

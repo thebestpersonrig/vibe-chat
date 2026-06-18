@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
-import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll } from "@/lib/types";
+import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll, CustomEmoji, Sticker } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
 import Sidebar from "@/components/Sidebar";
 import MessageComp from "@/components/Message";
@@ -17,6 +17,7 @@ import ImageLightbox from "@/components/ImageLightbox";
 import UserProfileCard from "@/components/UserProfileCard";
 import PollCreator from "@/components/PollCreator";
 import VoiceRecorder from "@/components/VoiceRecorder";
+import StickerPicker from "@/components/StickerPicker";
 
 const MAX_UPLOAD_MB = 10;
 const SPAM_WINDOW_MS = 4000;
@@ -59,7 +60,11 @@ export default function ChatPage() {
   const [showPinned, setShowPinned] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [polls, setPolls] = useState<Poll[]>([]);
+  const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [mutedRooms, setMutedRooms] = useState<string[]>([]);
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
   const [, forceUpdate] = useState(0);
 
@@ -74,10 +79,12 @@ export default function ChatPage() {
   const soundEnabledRef = useRef(soundEnabled);
   const kickChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesRef = useRef<MessageType[]>([]);
+  const mutedRoomsRef = useRef<string[]>([]);
 
   activeRoomRef.current = activeRoom;
   soundEnabledRef.current = soundEnabled;
   messagesRef.current = messages;
+  mutedRoomsRef.current = mutedRooms;
 
   // Tab title with unread count
   useEffect(() => {
@@ -85,10 +92,14 @@ export default function ChatPage() {
     document.title = total > 0 ? `(${total}) Radiant Power Batch` : "Radiant Power Batch";
   }, [unreadCounts]);
 
-  // Sound preference from localStorage
+  // Sound + mute preferences from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("rpb-sound");
     if (stored !== null) setSoundEnabled(stored === "true");
+    const mutedStored = localStorage.getItem("rpb-muted-rooms");
+    if (mutedStored) {
+      try { setMutedRooms(JSON.parse(mutedStored)); } catch {}
+    }
   }, []);
 
   // Request notification permission on first load
@@ -136,6 +147,8 @@ export default function ChatPage() {
     if (!username) return;
     loadRooms();
     loadAllUsers();
+    loadCustomEmojis();
+    loadStickers();
 
     const roomSub = supabase
       .channel("rooms-changes")
@@ -246,7 +259,7 @@ export default function ChatPage() {
   async function loadAllUsers() {
     const { data } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, title, balance, muted_until, status_emoji, status_text, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, title, muted_until, status_emoji, status_text, created_at")
       .order("username");
     if (data) setAllUsers(data);
   }
@@ -275,18 +288,19 @@ export default function ChatPage() {
         const newMsg = { ...payload.new as MessageType, reactions: [] };
         if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
+        const isRoomMuted = mutedRoomsRef.current.includes(activeRoomRef.current?.id || "");
         const isMention = newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`);
         const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
         if (isMention || isReplyToMe) {
-          if (soundEnabledRef.current) playMentionSound();
-          if (Notification.permission === "granted") {
+          if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
+          if (Notification.permission === "granted" && !isRoomMuted) {
             const title = isReplyToMe && !isMention
               ? `${newMsg.is_anonymous ? "Someone" : newMsg.username} replied to you`
               : `${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`;
             new Notification(title, { body: newMsg.content, icon: "/favicon.ico" });
           }
         } else {
-          if (soundEnabledRef.current) playMessageSound();
+          if (soundEnabledRef.current && !isRoomMuted) playMessageSound();
         }
         if (isNearBottomRef.current) {
           setTimeout(() => scrollToBottom(), 50);
@@ -535,6 +549,16 @@ export default function ChatPage() {
     if (data) setPolls(data.map((p: Record<string, unknown>) => ({ ...p, votes: p.poll_votes }) as unknown as Poll));
   }
 
+  async function loadCustomEmojis() {
+    const { data } = await supabase.from("custom_emojis").select("*").order("created_at");
+    if (data) setCustomEmojis(data);
+  }
+
+  async function loadStickers() {
+    const { data } = await supabase.from("stickers").select("*").order("created_at");
+    if (data) setStickers(data);
+  }
+
   async function handleCreatePoll(question: string, options: string[]) {
     if (!activeRoom) return;
     const { data: poll, error } = await supabase.from("polls").insert({ room_id: activeRoom.id, username, question, options }).select().single();
@@ -605,6 +629,14 @@ export default function ChatPage() {
     const next = !soundEnabled;
     setSoundEnabled(next);
     localStorage.setItem("rpb-sound", String(next));
+  }
+
+  function handleToggleMuteRoom(roomId: string) {
+    setMutedRooms(prev => {
+      const next = prev.includes(roomId) ? prev.filter(id => id !== roomId) : [...prev, roomId];
+      localStorage.setItem("rpb-muted-rooms", JSON.stringify(next));
+      return next;
+    });
   }
 
   async function handlePasswordChange(newPw: string): Promise<boolean> {
@@ -829,6 +861,16 @@ export default function ChatPage() {
     return polls.find(p => p.id === match[1]) || null;
   }, [polls]);
 
+  const allUsernames = useMemo(() => allUsers.map(u => u.username), [allUsers]);
+
+  const mentionableUsers = useMemo(() => {
+    if (!activeRoom || activeRoom.type !== "dm") return allUsers;
+    const names = dmNames[activeRoom.id];
+    if (!names) return allUsers;
+    const memberNames = new Set(names.split(", ").concat([username]));
+    return allUsers.filter(u => memberNames.has(u.username));
+  }, [activeRoom, allUsers, dmNames, username]);
+
   if (loading) {
     return (
       <div className="h-dvh flex items-center justify-center bg-background">
@@ -893,7 +935,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} mutedRooms={mutedRooms} onToggleMuteRoom={handleToggleMuteRoom} />
 
       <AnimatePresence>
         {showAdminPanel && (
@@ -1032,6 +1074,8 @@ export default function ChatPage() {
                           onOpenLightbox={(url) => setLightboxUrl(url)}
                           isMuted={isMuted()}
                           pollData={pollLookup(msg.content)}
+                          customEmojis={customEmojis}
+                          allUsernames={allUsernames}
                         />
                       </Fragment>
                     );
@@ -1091,7 +1135,8 @@ export default function ChatPage() {
                   ) : (
                   <div className="relative flex items-center gap-2" onPaste={handlePaste}>
                     <AnimatePresence>{showGifPicker && <GifPicker onSelect={(url) => { sendMediaMessage(url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}</AnimatePresence>
-                    <AnimatePresence>{showEmojiPicker && <EmojiPicker onSelect={(emoji) => { setNewMessage((prev) => prev + emoji); setShowEmojiPicker(false); }} onClose={() => setShowEmojiPicker(false)} />}</AnimatePresence>
+                    <AnimatePresence>{showEmojiPicker && <EmojiPicker onSelect={(emoji) => { setNewMessage((prev) => prev + emoji); setShowEmojiPicker(false); }} onClose={() => setShowEmojiPicker(false)} customEmojis={customEmojis} />}</AnimatePresence>
+                    <AnimatePresence>{showStickerPicker && <StickerPicker onSelect={(sticker) => { sendMediaMessage(sticker); setShowStickerPicker(false); }} onClose={() => setShowStickerPicker(false)} customStickers={stickers} />}</AnimatePresence>
                     <AnimatePresence>{showPollCreator && <PollCreator onSubmit={handleCreatePoll} onCancel={() => setShowPollCreator(false)} />}</AnimatePresence>
 
                     <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" onChange={handleFileUpload} className="hidden" />
@@ -1125,6 +1170,15 @@ export default function ChatPage() {
                       😊
                     </motion.button>
                     <motion.button
+                      onClick={() => setShowStickerPicker(!showStickerPicker)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showStickerPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
+                      title="Stickers"
+                    >
+                      🌟
+                    </motion.button>
+                    <motion.button
                       onClick={() => setIsAnonymous(!isAnonymous)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
@@ -1147,7 +1201,7 @@ export default function ChatPage() {
                         >
                           🎤
                         </motion.button>
-                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
+                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
                         <motion.button
                           onClick={sendMessage}
                           disabled={!newMessage.trim()}

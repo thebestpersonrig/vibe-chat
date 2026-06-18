@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, User, ROOM_EMOJIS } from "@/lib/types";
 import Avatar from "@/components/Avatar";
+import ThemePicker from "@/components/ThemePicker";
 
 interface SidebarProps {
   rooms: Room[];
@@ -30,9 +31,11 @@ interface SidebarProps {
   onToggleSound: () => void;
   onPasswordChange: (newPassword: string) => Promise<boolean>;
   onSetStatus: (emoji: string, text: string) => void;
+  mutedRooms: string[];
+  onToggleMuteRoom: (roomId: string) => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange, onSetStatus }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange, onSetStatus, mutedRooms, onToggleMuteRoom }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [showGroupDmPicker, setShowGroupDmPicker] = useState(false);
@@ -54,6 +57,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [showStatusEditor, setShowStatusEditor] = useState(false);
   const [statusEmoji, setStatusEmoji] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const groupRooms = rooms.filter((r) => r.type !== "dm");
@@ -234,21 +238,31 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             const isActive = activeRoomId === room.id;
             const displayName = getDmDisplayName(room);
             const otherUser = allUsers.find((u) => u.username === displayName);
+            const roomMuted = mutedRooms.includes(room.id);
             return (
-              <motion.button
-                key={room.id}
-                onClick={() => handleRoomClick(room)}
-                whileTap={{ scale: 0.97 }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent"}`}
-              >
-                <Avatar username={displayName} avatarColor={otherUser?.avatar_color || "#8B5CF6"} avatarUrl={otherUser?.avatar_url} size="sm" />
-                <span className="text-sm font-medium truncate flex-1">{displayName}</span>
-                {unread > 0 && !isActive && (
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
-                    {unread > 99 ? "99+" : unread}
-                  </motion.span>
-                )}
-              </motion.button>
+              <div key={room.id} className="group/room relative">
+                <motion.button
+                  onClick={() => handleRoomClick(room)}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : `${roomMuted ? "opacity-50" : ""} text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent`}`}
+                >
+                  <Avatar username={displayName} avatarColor={otherUser?.avatar_color || "#8B5CF6"} avatarUrl={otherUser?.avatar_url} size="sm" />
+                  <span className="text-sm font-medium truncate flex-1">{displayName}</span>
+                  {roomMuted && <span className="text-[10px] text-muted/40 shrink-0">🔇</span>}
+                  {unread > 0 && !isActive && (
+                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
+                      {unread > 99 ? "99+" : unread}
+                    </motion.span>
+                  )}
+                </motion.button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleMuteRoom(room.id); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/room:opacity-100 text-muted hover:text-foreground text-[10px] p-1 rounded transition-all cursor-pointer"
+                  title={roomMuted ? "Unmute" : "Mute"}
+                >
+                  {roomMuted ? "🔔" : "🔇"}
+                </button>
+              </div>
             );
           })}
           {dmRooms.length === 0 && !showDmPicker && !showGroupDmPicker && <p className="text-muted/40 text-[11px] text-center py-3">No DMs yet</p>}
@@ -289,30 +303,41 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           {groupRooms.map((room) => {
             const unread = unreadCounts[room.id] || 0;
             const isActive = activeRoomId === room.id;
+            const roomMuted = mutedRooms.includes(room.id);
             return (
               <div key={room.id} className="group/room relative">
                 <motion.button
                   onClick={() => handleRoomClick(room)}
                   whileTap={{ scale: 0.97 }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent"}`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : `${roomMuted ? "opacity-50" : ""} text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent`}`}
                 >
                   <span className={`text-lg transition-transform ${isActive ? "scale-110" : ""}`}>{room.emoji}</span>
                   <span className="text-sm font-medium truncate flex-1">{room.name}</span>
+                  {roomMuted && <span className="text-[10px] text-muted/40 shrink-0">🔇</span>}
                   {unread > 0 && !isActive && (
                     <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
                       {unread > 99 ? "99+" : unread}
                     </motion.span>
                   )}
                 </motion.button>
-                {isAdmin && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/room:opacity-100 transition-all">
                   <button
-                    onClick={() => setConfirmDeleteRoom(confirmDeleteRoom === room.id ? null : room.id)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/room:opacity-100 text-muted hover:text-pink text-[10px] p-1 rounded transition-all cursor-pointer"
-                    title="Delete room"
+                    onClick={(e) => { e.stopPropagation(); onToggleMuteRoom(room.id); }}
+                    className="text-muted hover:text-foreground text-[10px] p-1 rounded transition-all cursor-pointer"
+                    title={roomMuted ? "Unmute" : "Mute"}
                   >
-                    🗑️
+                    {roomMuted ? "🔔" : "🔇"}
                   </button>
-                )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => setConfirmDeleteRoom(confirmDeleteRoom === room.id ? null : room.id)}
+                      className="text-muted hover:text-pink text-[10px] p-1 rounded transition-all cursor-pointer"
+                      title="Delete room"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
                 <AnimatePresence>
                   {confirmDeleteRoom === room.id && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -386,21 +411,29 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             )}
           </AnimatePresence>
 
-          {/* Sound toggle + password change row */}
+          {/* Utility buttons row */}
           <div className="flex gap-1.5">
             <button
               onClick={onToggleSound}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border ${soundEnabled ? "bg-emerald/10 border-emerald/20 text-emerald hover:bg-emerald/20" : "bg-surface/50 border-border text-muted hover:bg-surface-hover"}`}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border ${soundEnabled ? "bg-emerald/10 border-emerald/20 text-emerald hover:bg-emerald/20" : "bg-surface/50 border-border text-muted hover:bg-surface-hover"}`}
             >
-              {soundEnabled ? "🔊 Sound On" : "🔇 Sound Off"}
+              {soundEnabled ? "🔊" : "🔇"}
+            </button>
+            <button
+              onClick={() => setShowThemePicker(!showThemePicker)}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border ${showThemePicker ? "bg-accent/10 border-accent/20 text-accent hover:bg-accent/20" : "bg-surface/50 border-border text-muted hover:bg-surface-hover"}`}
+            >
+              🎨 Theme
             </button>
             <button
               onClick={() => { setShowPasswordChange(!showPasswordChange); setPasswordError(""); setPasswordSuccess(false); setNewPassword(""); setConfirmPassword(""); }}
-              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border bg-surface/50 border-border text-muted hover:bg-surface-hover"
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border bg-surface/50 border-border text-muted hover:bg-surface-hover"
             >
-              🔑 Password
+              🔑
             </button>
           </div>
+
+          <ThemePicker isOpen={showThemePicker} onClose={() => setShowThemePicker(false)} />
 
           <AnimatePresence>
             {showPasswordChange && (
@@ -453,14 +486,11 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
               {currentUserData?.status_emoji && (
                 <div className="text-[10px] text-muted/60 truncate">{currentUserData.status_emoji} {currentUserData.status_text || ""}</div>
               )}
-              <div className="flex items-center gap-2">
-                {avatarError ? (
-                  <span className="text-[10px] text-pink">{avatarError}</span>
-                ) : (
-                  <span className="text-[10px] text-emerald">Online</span>
-                )}
-                <span className="text-[10px] text-muted/50">💰 {currentUserData?.balance || 0}</span>
-              </div>
+              {avatarError ? (
+                <span className="text-[10px] text-pink">{avatarError}</span>
+              ) : (
+                <span className="text-[10px] text-emerald">Online</span>
+              )}
             </div>
             <button onClick={onLogout} className="text-muted hover:text-foreground transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Log out">↩</button>
             <button onClick={() => setConfirmDeleteAccount(true)} className="text-muted hover:text-pink transition-colors text-xs cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover" title="Delete account">🗑️</button>
