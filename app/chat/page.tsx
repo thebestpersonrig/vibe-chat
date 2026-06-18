@@ -169,12 +169,26 @@ export default function ChatPage() {
       })
       .subscribe();
 
+    const kickSub = supabase
+      .channel("admin-kick")
+      .on("broadcast", { event: "kick" }, ({ payload: p }) => {
+        if (p.target === username) {
+          localStorage.removeItem("rpb-user");
+          setUsername("");
+          setActiveRoom(null);
+          setMessages([]);
+          alert("You have been kicked by an admin.");
+        }
+      })
+      .subscribe();
+
     const usersInterval = setInterval(loadAllUsers, 15000);
 
     return () => {
       supabase.removeChannel(roomSub);
       supabase.removeChannel(globalMsgSub);
       supabase.removeChannel(usersSub);
+      supabase.removeChannel(kickSub);
       clearInterval(usersInterval);
     };
   }, [username]);
@@ -329,6 +343,8 @@ export default function ChatPage() {
     if (!me?.muted_until) return "";
     const diff = new Date(me.muted_until).getTime() - Date.now();
     if (diff <= 0) return "";
+    const secs = Math.floor(diff / 1000);
+    if (secs < 60) return `${secs}s`;
     const mins = Math.floor(diff / 60000);
     if (mins < 60) return `${mins}m`;
     const hrs = Math.floor(mins / 60);
@@ -518,6 +534,10 @@ export default function ChatPage() {
     await supabase.from("rooms").delete().eq("id", roomId);
     if (activeRoom?.id === roomId) setActiveRoom(null);
     setRooms((prev) => prev.filter((r) => r.id !== roomId));
+  }
+
+  function handleKick(target: string) {
+    supabase.channel("admin-kick").send({ type: "broadcast", event: "kick", payload: { target } });
   }
 
   async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
@@ -720,7 +740,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onKick={handleKick} />
         )}
       </AnimatePresence>
 

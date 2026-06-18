@@ -10,6 +10,7 @@ interface AdminPanelProps {
   allUsers: User[];
   onClose: () => void;
   onUpdate: () => void;
+  onKick: (username: string) => void;
 }
 
 const MUTE_DURATIONS = [
@@ -27,6 +28,8 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   const now = Date.now();
   if (until <= now) return { muted: false, remaining: "" };
   const diff = until - now;
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return { muted: true, remaining: `${secs}s left` };
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return { muted: true, remaining: `${mins}m left` };
   const hrs = Math.floor(mins / 60);
@@ -34,7 +37,7 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onKick }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
   const [salaryInput, setSalaryInput] = useState("");
@@ -94,7 +97,9 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
 
   async function toggleBan(user: User) {
     setSaving(true);
-    await supabase.from("users").update({ is_banned: !user.is_banned }).eq("username", user.username);
+    const { error } = await supabase.from("users").update({ is_banned: !user.is_banned }).eq("username", user.username);
+    if (error) console.error("Ban toggle failed:", error.message);
+    if (!user.is_banned) onKick(user.username);
     onUpdate();
     setSaving(false);
   }
@@ -244,8 +249,16 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                         {!user.is_admin && (
                           <div>
                             <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
-                              Ban
+                              Kick / Ban
                             </label>
+                            <div className="flex gap-1.5">
+                            <button
+                              onClick={() => onKick(user.username)}
+                              disabled={saving}
+                              className="text-[10px] bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                            >
+                              Kick
+                            </button>
                             <button
                               onClick={() => toggleBan(user)}
                               disabled={saving}
@@ -253,6 +266,7 @@ export default function AdminPanel({ allUsers, onClose, onUpdate }: AdminPanelPr
                             >
                               {user.is_banned ? "Unban User" : "Ban User"}
                             </button>
+                            </div>
                           </div>
                         )}
                       </div>
