@@ -29,7 +29,7 @@ interface SidebarProps {
   onClose: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
-  onPasswordChange: (newPassword: string) => Promise<boolean>;
+  onPasswordChange: (currentPassword: string, newPassword: string) => Promise<boolean>;
   onSetStatus: (emoji: string, text: string) => void;
   mutedRooms: string[];
   onToggleMuteRoom: (roomId: string) => void;
@@ -49,6 +49,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState<string | null>(null);
   const [dmSearch, setDmSearch] = useState("");
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -116,18 +117,20 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
 
   async function handlePasswordSubmit() {
     setPasswordError("");
+    if (!currentPassword) { setPasswordError("Enter current password"); return; }
     if (newPassword.length < 4) { setPasswordError("Min 4 characters"); return; }
     if (newPassword !== confirmPassword) { setPasswordError("Passwords don't match"); return; }
     setPasswordSaving(true);
-    const ok = await onPasswordChange(newPassword);
+    const ok = await onPasswordChange(currentPassword, newPassword);
     setPasswordSaving(false);
     if (ok) {
       setPasswordSuccess(true);
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setTimeout(() => { setPasswordSuccess(false); setShowPasswordChange(false); }, 1500);
     } else {
-      setPasswordError("Failed to update");
+      setPasswordError("Current password is wrong");
     }
   }
 
@@ -426,7 +429,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
               🎨 Theme
             </button>
             <button
-              onClick={() => { setShowPasswordChange(!showPasswordChange); setPasswordError(""); setPasswordSuccess(false); setNewPassword(""); setConfirmPassword(""); }}
+              onClick={() => { setShowPasswordChange(!showPasswordChange); setPasswordError(""); setPasswordSuccess(false); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); }}
               className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border bg-surface/50 border-border text-muted hover:bg-surface-hover"
             >
               🔑
@@ -441,6 +444,13 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                 <div className="p-3 rounded-xl bg-surface/60 border border-border space-y-2">
                   <input
                     type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Current password..."
+                    className="w-full bg-background/50 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
+                  />
+                  <input
+                    type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="New password..."
@@ -451,7 +461,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password..."
+                    placeholder="Confirm new password..."
                     minLength={4}
                     className="w-full bg-background/50 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
                   />
@@ -459,7 +469,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                   {passwordSuccess && <p className="text-[10px] text-emerald">Password updated!</p>}
                   <button
                     onClick={handlePasswordSubmit}
-                    disabled={passwordSaving || !newPassword || !confirmPassword}
+                    disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
                     className="w-full text-[10px] bg-accent/20 hover:bg-accent/30 text-accent py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
                   >
                     {passwordSaving ? "Saving..." : "Update Password"}

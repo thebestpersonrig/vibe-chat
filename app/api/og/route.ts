@@ -24,9 +24,14 @@ export async function GET(request: Request) {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": "bot" },
-      redirect: "manual",
+      redirect: "follow",
     });
     clearTimeout(timeout);
+
+    if (!isAllowedUrl(res.url)) return Response.json({}, { status: 400 });
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("text/html")) return Response.json({});
 
     const html = await res.text();
     const get = (property: string) => {

@@ -113,7 +113,23 @@ export async function POST(request: Request) {
     }
 
     if (action === "change-password") {
-      const hashed = await pbkdf2Hash(password);
+      const { currentPassword, newPassword } = body;
+      if (!currentPassword || !newPassword) {
+        return Response.json({ error: "Missing current or new password" }, { status: 400 });
+      }
+      const { data: user } = await supabase
+        .from("users")
+        .select("password_hash")
+        .eq("username", username)
+        .single();
+      if (!user || !user.password_hash) {
+        return Response.json({ error: "User not found" }, { status: 404 });
+      }
+      const valid = await verifyPassword(currentPassword, user.password_hash);
+      if (!valid) {
+        return Response.json({ error: "Current password is wrong" }, { status: 401 });
+      }
+      const hashed = await pbkdf2Hash(newPassword);
       const { error } = await supabase.from("users").update({ password_hash: hashed }).eq("username", username);
       if (error) return Response.json({ error: error.message }, { status: 500 });
       return Response.json({ success: true });

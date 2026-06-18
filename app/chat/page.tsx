@@ -289,7 +289,8 @@ export default function ChatPage() {
         if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
         const isRoomMuted = mutedRoomsRef.current.includes(activeRoomRef.current?.id || "");
-        const isMention = newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`);
+        const mentionRe = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`, "i");
+        const isMention = mentionRe.test(newMsg.content);
         const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
         if (isMention || isReplyToMe) {
           if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
@@ -639,11 +640,11 @@ export default function ChatPage() {
     });
   }
 
-  async function handlePasswordChange(newPw: string): Promise<boolean> {
+  async function handlePasswordChange(currentPw: string, newPw: string): Promise<boolean> {
     const res = await fetch("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "change-password", username, password: newPw }),
+      body: JSON.stringify({ action: "change-password", username, currentPassword: currentPw, newPassword: newPw }),
     });
     return res.ok;
   }
@@ -653,7 +654,6 @@ export default function ChatPage() {
     channelRef.current?.send({ type: "broadcast", event: "typing", payload: { username } });
     typingTimeoutRef.current = setTimeout(() => {
       typingTimeoutRef.current = null;
-      channelRef.current?.send({ type: "broadcast", event: "typing", payload: { username } });
     }, 2000);
   }
 
@@ -1152,7 +1152,7 @@ export default function ChatPage() {
                       {uploading ? "⏳" : "📷"}
                     </motion.button>
                     <motion.button
-                      onClick={() => setShowGifPicker(!showGifPicker)}
+                      onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); setShowStickerPicker(false); setShowPollCreator(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-[11px] shrink-0 font-black px-2.5 py-1.5 rounded-xl transition-all cursor-pointer tracking-wide ${showGifPicker ? "bg-accent/20 text-accent ring-1 ring-accent/30" : "text-muted hover:text-accent hover:bg-accent/10"}`}
@@ -1161,7 +1161,7 @@ export default function ChatPage() {
                       GIF
                     </motion.button>
                     <motion.button
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); setShowStickerPicker(false); setShowPollCreator(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showEmojiPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
@@ -1170,7 +1170,7 @@ export default function ChatPage() {
                       😊
                     </motion.button>
                     <motion.button
-                      onClick={() => setShowStickerPicker(!showStickerPicker)}
+                      onClick={() => { setShowStickerPicker(!showStickerPicker); setShowGifPicker(false); setShowEmojiPicker(false); setShowPollCreator(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showStickerPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
