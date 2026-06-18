@@ -282,7 +282,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
               </button>
 
               {/* Reply */}
-              {onReply && (
+              {onReply && !message.id.startsWith("temp-") && (
                 <button
                   onClick={() => { onReply(message); setShowMenu(false); }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer"

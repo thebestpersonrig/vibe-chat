@@ -56,6 +56,7 @@ export default function ChatPage() {
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [spamCooldown, setSpamCooldown] = useState(false);
   const [showPinned, setShowPinned] = useState(false);
+  const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -65,8 +66,11 @@ export default function ChatPage() {
   const activeRoomRef = useRef<Room | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const spamTimestamps = useRef<number[]>([]);
+  const soundEnabledRef = useRef(soundEnabled);
+  const kickChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   activeRoomRef.current = activeRoom;
+  soundEnabledRef.current = soundEnabled;
 
   // Tab title with unread count
   useEffect(() => {
@@ -86,6 +90,13 @@ export default function ChatPage() {
       Notification.requestPermission();
     }
   }, [username]);
+
+  useEffect(() => {
+    const me = allUsers.find((u) => u.username === username);
+    if (!me?.muted_until || new Date(me.muted_until).getTime() <= Date.now()) return;
+    const interval = setInterval(() => forceUpdate((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [allUsers, username]);
 
   useEffect(() => {
     async function init() {
@@ -160,16 +171,10 @@ export default function ChatPage() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, (payload) => {
         const updated = payload.new as User;
         setAllUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u));
-        if (updated.username === username && updated.is_banned) {
-          localStorage.removeItem("rpb-user");
-          setUsername("");
-          setActiveRoom(null);
-          setMessages([]);
-        }
       })
       .subscribe();
 
-    const kickSub = supabase
+    const kickChannel = supabase
       .channel("admin-kick")
       .on("broadcast", { event: "kick" }, ({ payload: p }) => {
         if (p.target === username) {
@@ -177,10 +182,11 @@ export default function ChatPage() {
           setUsername("");
           setActiveRoom(null);
           setMessages([]);
-          alert("You have been kicked by an admin.");
+          alert("Your account has been deleted by an admin.");
         }
       })
       .subscribe();
+    kickChannelRef.current = kickChannel;
 
     const usersInterval = setInterval(loadAllUsers, 15000);
 
@@ -188,7 +194,7 @@ export default function ChatPage() {
       supabase.removeChannel(roomSub);
       supabase.removeChannel(globalMsgSub);
       supabase.removeChannel(usersSub);
-      supabase.removeChannel(kickSub);
+      supabase.removeChannel(kickChannel);
       clearInterval(usersInterval);
     };
   }, [username]);
@@ -247,12 +253,12 @@ export default function ChatPage() {
         if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
         if (newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`)) {
-          if (soundEnabled) playMentionSound();
+          if (soundEnabledRef.current) playMentionSound();
           if (Notification.permission === "granted") {
             new Notification(`${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
           }
         } else {
-          if (soundEnabled) playMessageSound();
+          if (soundEnabledRef.current) playMessageSound();
         }
         if (isNearBottomRef.current) {
           setTimeout(() => scrollToBottom(), 50);
@@ -523,7 +529,23 @@ export default function ChatPage() {
   }
 
   async function handleStartGroupDm(users: string[]) {
-    const allMembers = [username, ...users];
+    const allMembers = [username, ...users].sort();
+
+    const { data: myMemberships } = await supabase.from("room_members").select("room_id").eq("username", username);
+    if (myMemberships) {
+      for (const m of myMemberships) {
+        const existing = rooms.find((r) => r.id === m.room_id && r.type === "dm");
+        if (!existing) continue;
+        const { data: members } = await supabase.from("room_members").select("username").eq("room_id", existing.id);
+        if (!members) continue;
+        const sorted = members.map((x) => x.username).sort();
+        if (sorted.length === allMembers.length && sorted.every((n, i) => n === allMembers[i])) {
+          setActiveRoom(existing);
+          return;
+        }
+      }
+    }
+
     const { data: room, error } = await supabase.from("rooms").insert({ name: allMembers.join("-"), emoji: "💬", type: "dm" }).select().single();
     if (error || !room) { console.error("Group DM create failed:", error?.message); return; }
 
@@ -542,8 +564,10 @@ export default function ChatPage() {
     setRooms((prev) => prev.filter((r) => r.id !== roomId));
   }
 
-  function handleKick(target: string) {
-    supabase.channel("admin-kick").send({ type: "broadcast", event: "kick", payload: { target } });
+  async function handleAdminDeleteUser(target: string) {
+    await supabase.from("users").delete().eq("username", target);
+    kickChannelRef.current?.send({ type: "broadcast", event: "kick", payload: { target } });
+    loadAllUsers();
   }
 
   async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
@@ -746,7 +770,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onKick={handleKick} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} />
         )}
       </AnimatePresence>
 

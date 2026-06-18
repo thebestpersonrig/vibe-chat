@@ -10,7 +10,7 @@ interface AdminPanelProps {
   allUsers: User[];
   onClose: () => void;
   onUpdate: () => void;
-  onKick: (username: string) => void;
+  onDeleteUser: (username: string) => void;
 }
 
 const MUTE_DURATIONS = [
@@ -37,11 +37,12 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate, onKick }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
   const [salaryInput, setSalaryInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
 
   function startEditing(user: User) {
     if (editingUser === user.username) {
@@ -95,15 +96,6 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onKick }: Admi
     setSaving(false);
   }
 
-  async function toggleBan(user: User) {
-    setSaving(true);
-    const { error } = await supabase.from("users").update({ is_banned: !user.is_banned }).eq("username", user.username);
-    if (error) console.error("Ban toggle failed:", error.message);
-    if (!user.is_banned) onKick(user.username);
-    onUpdate();
-    setSaving(false);
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -144,7 +136,6 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onKick }: Admi
                       {user.is_admin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
                       {user.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border truncate max-w-[100px]">{user.title}</span>}
                       {muteStatus.muted && <span className="text-[9px] bg-pink/15 text-pink px-1.5 py-0.5 rounded-full font-medium">🔇 {muteStatus.remaining}</span>}
-                      {user.is_banned && <span className="text-[9px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded-full font-bold">BANNED</span>}
                     </div>
                     <span className="text-[10px] text-muted/50">💰 {user.balance || 0}</span>
                   </div>
@@ -249,24 +240,23 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onKick }: Admi
                         {!user.is_admin && (
                           <div>
                             <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
-                              Kick / Ban
+                              Danger Zone
                             </label>
-                            <div className="flex gap-1.5">
-                            <button
-                              onClick={() => onKick(user.username)}
-                              disabled={saving}
-                              className="text-[10px] bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
-                            >
-                              Kick
-                            </button>
-                            <button
-                              onClick={() => toggleBan(user)}
-                              disabled={saving}
-                              className={`text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50 ${user.is_banned ? "bg-emerald/20 hover:bg-emerald/30 text-emerald" : "bg-red-500/15 hover:bg-red-500/25 text-red-400"}`}
-                            >
-                              {user.is_banned ? "Unban User" : "Ban User"}
-                            </button>
-                            </div>
+                            {confirmDeleteUser === user.username ? (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                                <span className="text-[10px] text-red-400">Delete {user.username}?</span>
+                                <button onClick={() => { onDeleteUser(user.username); setConfirmDeleteUser(null); setEditingUser(null); }} className="text-[10px] text-red-400 font-semibold cursor-pointer hover:text-red-300">Yes</button>
+                                <button onClick={() => setConfirmDeleteUser(null)} className="text-[10px] text-muted cursor-pointer hover:text-foreground">No</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteUser(user.username)}
+                                disabled={saving}
+                                className="text-[10px] bg-red-500/15 hover:bg-red-500/25 text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                              >
+                                Delete Account
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
