@@ -3,6 +3,7 @@ export interface Room {
   name: string;
   emoji: string;
   type: "group" | "dm";
+  description?: string | null;
   created_at: string;
 }
 
@@ -37,6 +38,8 @@ export interface User {
   title?: string | null;
   balance?: number;
   muted_until?: string | null;
+  status_emoji?: string | null;
+  status_text?: string | null;
   created_at: string;
 }
 
@@ -50,6 +53,23 @@ export interface UserPresence {
   avatar_color: string;
   avatar_url?: string | null;
   online_at: string;
+}
+
+export interface Poll {
+  id: string;
+  room_id: string;
+  username: string;
+  question: string;
+  options: string[];
+  created_at: string;
+  votes?: PollVote[];
+}
+
+export interface PollVote {
+  id: string;
+  poll_id: string;
+  username: string;
+  option_index: number;
 }
 
 export interface GiphyGif {
@@ -75,7 +95,7 @@ export const ROOM_EMOJIS = [
 export const REACTION_EMOJIS = ["❤️", "😂", "🔥", "👍", "😮", "🎉", "💯", "👀"];
 
 export function detectMedia(content: string): {
-  type: "image" | "gif" | "youtube" | "video" | null;
+  type: "image" | "gif" | "youtube" | "video" | "audio" | null;
   url: string;
   text: string;
 } {
@@ -84,6 +104,8 @@ export function detectMedia(content: string): {
     return { type: "image", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.gif(\?.*)?$/i.test(trimmed) || /^https?:\/\/media\d*\.giphy\.com\//i.test(trimmed))
     return { type: "gif", url: trimmed, text: "" };
+  if (/^https?:\/\/.+\.(mp3|wav|ogg|m4a)(\?.*)?$/i.test(trimmed) || /^https?:\/\/.+\/voice-[^/]+\.webm(\?.*)?$/i.test(trimmed))
+    return { type: "audio", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.(mp4|webm|mov)(\?.*)?$/i.test(trimmed))
     return { type: "video", url: trimmed, text: "" };
   const ytMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);

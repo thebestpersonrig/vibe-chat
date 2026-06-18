@@ -50,6 +50,9 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser 
           {user.title && (
             <span className="text-[11px] bg-accent/10 text-accent/70 px-2 py-0.5 rounded-full border border-accent/15 font-medium">{user.title}</span>
           )}
+          {user.status_emoji && (
+            <p className="text-xs text-muted/60 mt-1">{user.status_emoji} {user.status_text || ""}</p>
+          )}
 
           <div className="mt-4 flex justify-center gap-6">
             <div className="text-center">

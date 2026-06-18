@@ -3,8 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
-import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia } from "@/lib/types";
+import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll } from "@/lib/types";
 import Avatar from "@/components/Avatar";
+import LinkPreview from "@/components/LinkPreview";
+import AudioPlayer from "@/components/AudioPlayer";
+import PollDisplay from "@/components/PollDisplay";
 
 interface MessageProps {
   message: MessageType;
@@ -19,6 +22,8 @@ interface MessageProps {
   onPin?: (id: string, pinned: boolean) => void;
   onOpenProfile?: (username: string) => void;
   onOpenLightbox?: (url: string) => void;
+  isMuted?: boolean;
+  pollData?: Poll | null;
 }
 
 function timeAgo(dateString: string): string {
@@ -61,6 +66,11 @@ function renderTextContent(content: string, currentUser: string) {
   });
 }
 
+function extractFirstUrl(content: string): string | null {
+  const match = content.match(/https?:\/\/[^\s<]+[^\s<.,;:!?"'\])}>]/);
+  return match?.[0] || null;
+}
+
 function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLightbox?: (url: string) => void }) {
   const media = detectMedia(content);
   if (media.type === "image")
@@ -75,6 +85,8 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
     );
   if (media.type === "gif")
     return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-64 ring-1 ring-border media-hover" loading="lazy" />;
+  if (media.type === "audio")
+    return <AudioPlayer url={media.url} />;
   if (media.type === "video")
     return <video src={media.url} controls className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 ring-1 ring-border" preload="metadata" />;
   if (media.type === "youtube")
@@ -89,7 +101,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, isMuted, pollData }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -99,6 +111,8 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const editRef = useRef<HTMLInputElement>(null);
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
+  const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
+  const firstUrl = !hasMedia && !isPoll ? extractFirstUrl(message.content) : null;
   const canDelete = isOwn || isAdmin;
   const canEdit = isOwn && !message.is_anonymous;
 
@@ -128,6 +142,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   }, [isEditing]);
 
   async function toggleReaction(emoji: string) {
+    if (isMuted) return;
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
     if (existing) await supabase.from("reactions").delete().eq("id", existing.id);
     else await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
@@ -225,10 +240,15 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
             <button onClick={handleEditSave} className="text-[10px] text-accent font-medium cursor-pointer hover:text-accent-hover px-2 py-1 rounded-lg hover:bg-accent/10 transition-colors">Save</button>
             <button onClick={() => { setIsEditing(false); setEditText(message.content); }} className="text-[10px] text-muted cursor-pointer hover:text-foreground px-2 py-1 rounded-lg hover:bg-surface-hover transition-colors">Cancel</button>
           </div>
+        ) : isPoll && pollData ? (
+          <PollDisplay poll={pollData} username={username} />
         ) : hasMedia ? (
           <MediaContent content={message.content} onOpenLightbox={onOpenLightbox} />
         ) : (
-          <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username)}</p>
+          <>
+            <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username)}</p>
+            {firstUrl && <LinkPreview url={firstUrl} />}
+          </>
         )}
 
         {/* Reactions */}

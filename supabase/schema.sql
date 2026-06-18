@@ -14,6 +14,8 @@ create table if not exists users (
   title text,
   balance integer default 0,
   muted_until timestamptz,
+  status_emoji text,
+  status_text text,
   created_at timestamptz default now()
 );
 
@@ -23,6 +25,7 @@ create table if not exists rooms (
   name text not null,
   emoji text not null default '💬',
   type text not null default 'group',
+  description text,
   created_at timestamptz default now()
 );
 
@@ -102,6 +105,42 @@ alter publication supabase_realtime add table messages;
 alter publication supabase_realtime add table reactions;
 alter publication supabase_realtime add table rooms;
 alter publication supabase_realtime add table users;
+
+-- Polls table
+create table if not exists polls (
+  id uuid default gen_random_uuid() primary key,
+  room_id uuid references rooms(id) on delete cascade not null,
+  username text not null,
+  question text not null,
+  options jsonb not null,
+  created_at timestamptz default now()
+);
+
+-- Poll votes table
+create table if not exists poll_votes (
+  id uuid default gen_random_uuid() primary key,
+  poll_id uuid references polls(id) on delete cascade not null,
+  username text not null,
+  option_index integer not null,
+  created_at timestamptz default now(),
+  unique(poll_id, username)
+);
+
+create index if not exists idx_polls_room_id on polls(room_id);
+create index if not exists idx_poll_votes_poll_id on poll_votes(poll_id);
+
+alter table polls enable row level security;
+alter table poll_votes enable row level security;
+
+create policy "Anyone can read polls" on polls for select using (true);
+create policy "Anyone can create polls" on polls for insert with check (true);
+create policy "Anyone can read poll_votes" on poll_votes for select using (true);
+create policy "Anyone can vote" on poll_votes for insert with check (true);
+create policy "Anyone can change vote" on poll_votes for update using (true) with check (true);
+create policy "Anyone can remove vote" on poll_votes for delete using (true);
+
+alter publication supabase_realtime add table polls;
+alter publication supabase_realtime add table poll_votes;
 
 -- Auto-cleanup: delete messages older than 24 hours
 -- Call this with pg_cron or a scheduled function

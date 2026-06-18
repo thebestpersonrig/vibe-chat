@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
-import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS } from "@/lib/types";
+import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
 import { hashPassword } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
@@ -16,6 +16,8 @@ import EmojiPicker from "@/components/EmojiPicker";
 import AdminPanel from "@/components/AdminPanel";
 import ImageLightbox from "@/components/ImageLightbox";
 import UserProfileCard from "@/components/UserProfileCard";
+import PollCreator from "@/components/PollCreator";
+import VoiceRecorder from "@/components/VoiceRecorder";
 
 const MAX_UPLOAD_MB = 10;
 const SPAM_WINDOW_MS = 4000;
@@ -56,6 +58,10 @@ export default function ChatPage() {
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [spamCooldown, setSpamCooldown] = useState(false);
   const [showPinned, setShowPinned] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -68,9 +74,11 @@ export default function ChatPage() {
   const spamTimestamps = useRef<number[]>([]);
   const soundEnabledRef = useRef(soundEnabled);
   const kickChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const messagesRef = useRef<MessageType[]>([]);
 
   activeRoomRef.current = activeRoom;
   soundEnabledRef.current = soundEnabled;
+  messagesRef.current = messages;
 
   // Tab title with unread count
   useEffect(() => {
@@ -97,6 +105,12 @@ export default function ChatPage() {
     const interval = setInterval(() => forceUpdate((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, [allUsers, username]);
+
+  useEffect(() => {
+    if (!unreadDividerMsgId) return;
+    const timer = setTimeout(() => setUnreadDividerMsgId(null), 5000);
+    return () => clearTimeout(timer);
+  }, [unreadDividerMsgId]);
 
   useEffect(() => {
     async function init() {
@@ -234,7 +248,12 @@ export default function ChatPage() {
     setTypingUsers([]);
     setReplyingTo(null);
     setShowPinned(false);
+    setShowPollCreator(false);
+    setShowVoiceRecorder(false);
+    const lastRead = localStorage.getItem(`rpb-lastread-${activeRoom.id}`);
+    setUnreadDividerMsgId(lastRead);
     loadMessages(activeRoom.id);
+    loadPolls(activeRoom.id);
     setNewMsgCount(0);
     setUnreadCounts((prev) => ({ ...prev, [activeRoom.id]: 0 }));
 
@@ -247,10 +266,15 @@ export default function ChatPage() {
         const newMsg = { ...payload.new as MessageType, reactions: [] };
         if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
-        if (newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`)) {
+        const isMention = newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`);
+        const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
+        if (isMention || isReplyToMe) {
           if (soundEnabledRef.current) playMentionSound();
           if (Notification.permission === "granted") {
-            new Notification(`${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
+            const title = isReplyToMe && !isMention
+              ? `${newMsg.is_anonymous ? "Someone" : newMsg.username} replied to you`
+              : `${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`;
+            new Notification(title, { body: newMsg.content, icon: "/favicon.ico" });
           }
         } else {
           if (soundEnabledRef.current) playMessageSound();
@@ -267,6 +291,12 @@ export default function ChatPage() {
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
         setMessages((prev) => prev.filter((m) => m.id !== (payload.old as { id: string }).id));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, () => {
+        if (activeRoomRef.current) loadPolls(activeRoomRef.current.id);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "polls", filter: `room_id=eq.${activeRoom.id}` }, () => {
+        if (activeRoomRef.current) loadPolls(activeRoomRef.current.id);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, (payload) => {
         if (payload.eventType === "INSERT") {
@@ -330,7 +360,18 @@ export default function ChatPage() {
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     isNearBottomRef.current = nearBottom;
-    if (nearBottom) setNewMsgCount(0);
+    if (nearBottom) {
+      setNewMsgCount(0);
+      setUnreadDividerMsgId(null);
+      const room = activeRoomRef.current;
+      const msgs = messagesRef.current;
+      if (room && msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (!lastMsg.id.startsWith("temp-")) {
+          localStorage.setItem(`rpb-lastread-${room.id}`, lastMsg.id);
+        }
+      }
+    }
   }
 
   function isMuted(): boolean {
@@ -367,8 +408,32 @@ export default function ChatPage() {
   }
 
   async function sendMessage() {
-    const content = newMessage.trim();
+    let content = newMessage.trim();
     if (!content || !activeRoom || isMuted() || spamCooldown) return;
+
+    if (content.startsWith("/")) {
+      if (content.startsWith("/shrug")) {
+        const text = content.slice(6).trim();
+        content = text ? `${text} ¯\\_(ツ)_/¯` : "¯\\_(ツ)_/¯";
+      } else if (content.startsWith("/tableflip")) {
+        const text = content.slice(10).trim();
+        content = text ? `${text} (╯°□°)╯︵ ┻━┻` : "(╯°□°)╯︵ ┻━┻";
+      } else if (content.startsWith("/unflip")) {
+        const text = content.slice(7).trim();
+        content = text ? `${text} ┬─┬ノ( º _ ºノ)` : "┬─┬ノ( º _ ºノ)";
+      } else if (content.startsWith("/me ")) {
+        content = `_${content.slice(4).trim()}_`;
+      } else if (content === "/gif" || content === "/giphy") {
+        setShowGifPicker(true);
+        setNewMessage("");
+        return;
+      } else if (content === "/poll") {
+        setShowPollCreator(true);
+        setNewMessage("");
+        return;
+      }
+    }
+
     if (checkSpam()) return;
     setNewMessage("");
     const replyId = replyingTo?.id || null;
@@ -449,6 +514,60 @@ export default function ChatPage() {
     if (url) await sendMediaMessage(url);
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function loadPolls(roomId: string) {
+    const { data } = await supabase.from("polls").select("*, poll_votes(*)").eq("room_id", roomId);
+    if (data) setPolls(data.map((p: Record<string, unknown>) => ({ ...p, votes: p.poll_votes }) as unknown as Poll));
+  }
+
+  async function handleCreatePoll(question: string, options: string[]) {
+    if (!activeRoom) return;
+    const { data: poll, error } = await supabase.from("polls").insert({ room_id: activeRoom.id, username, question, options }).select().single();
+    if (error || !poll) { console.error("Poll create failed:", error?.message); return; }
+    await supabase.from("messages").insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: `[poll:${poll.id}]`, is_anonymous: false });
+    setShowPollCreator(false);
+    setNewMessage("");
+  }
+
+  async function handleVoiceMessage(blob: Blob) {
+    setUploading(true);
+    const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+    const url = await uploadImage(file, "voice-");
+    if (url) await sendMediaMessage(url);
+    setUploading(false);
+    setShowVoiceRecorder(false);
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+        if (file.size > MAX_UPLOAD_MB * 1024 * 1024) { alert(`Image too large — max ${MAX_UPLOAD_MB}MB`); return; }
+        setUploading(true);
+        uploadImage(file).then(url => {
+          if (url) sendMediaMessage(url);
+          setUploading(false);
+        });
+        return;
+      }
+    }
+  }
+
+  async function handleSetStatus(emoji: string, text: string) {
+    await supabase.from("users").update({ status_emoji: emoji || null, status_text: text || null }).eq("username", username);
+    loadAllUsers();
+  }
+
+  async function handleSetRoomDescription(description: string) {
+    if (!activeRoom) return;
+    await supabase.from("rooms").update({ description: description || null }).eq("id", activeRoom.id);
+    setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, description } : r));
+    setActiveRoom(prev => prev ? { ...prev, description } : prev);
   }
 
   async function handleEditMessage(id: string, newContent: string) {
@@ -685,6 +804,12 @@ export default function ChatPage() {
     return messages.find((m) => m.id === id) || null;
   }, [messages]);
 
+  const pollLookup = useCallback((content: string) => {
+    const match = content.match(/^\[poll:([a-f0-9-]+)\]$/);
+    if (!match) return null;
+    return polls.find(p => p.id === match[1]) || null;
+  }, [polls]);
+
   if (loading) {
     return (
       <div className="h-dvh flex items-center justify-center bg-background">
@@ -749,7 +874,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} />
 
       <AnimatePresence>
         {showAdminPanel && (
@@ -791,6 +916,12 @@ export default function ChatPage() {
                     <span className="text-[10px] text-muted">
                       {activeRoom.type === "dm" ? "Direct Message" : `${onlineUsers.length} online`}
                     </span>
+                    {activeRoom.description && activeRoom.type !== "dm" && (
+                      <span className="text-[10px] text-muted/40 truncate max-w-[200px]">· {activeRoom.description}</span>
+                    )}
+                    {isAdmin && activeRoom.type !== "dm" && (
+                      <button onClick={() => { const desc = prompt("Room description:", activeRoom.description || ""); if (desc !== null) handleSetRoomDescription(desc); }} className="text-muted/30 hover:text-muted text-[10px] cursor-pointer p-0.5 rounded hover:bg-surface-hover transition-colors" title="Edit description">✏️</button>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -857,22 +988,33 @@ export default function ChatPage() {
                   )}
                   {messages.map((msg, i) => {
                     const sender = allUsers.find((u) => u.username === msg.username);
+                    const showDivider = unreadDividerMsgId && ((i > 0 && messages[i - 1].id === unreadDividerMsgId && msg.id !== unreadDividerMsgId) || (i === 0 && !messages.some(m => m.id === unreadDividerMsgId)));
                     return (
-                      <MessageComp
-                        key={msg.id}
-                        message={msg}
-                        isOwn={msg.username === username}
-                        username={username}
-                        isGrouped={isGrouped(i)}
-                        isAdmin={isAdmin}
-                        senderTitle={sender?.title}
-                        replyMessage={replyLookup(msg.reply_to)}
-                        onReply={(m) => setReplyingTo(m)}
-                        onEdit={handleEditMessage}
-                        onPin={handleTogglePin}
-                        onOpenProfile={handleOpenProfile}
-                        onOpenLightbox={(url) => setLightboxUrl(url)}
-                      />
+                      <Fragment key={msg.id}>
+                        {showDivider && (
+                          <div className="flex items-center gap-3 px-5 py-2">
+                            <div className="flex-1 h-px bg-pink/30" />
+                            <span className="text-[10px] text-pink font-medium uppercase tracking-wider">New</span>
+                            <div className="flex-1 h-px bg-pink/30" />
+                          </div>
+                        )}
+                        <MessageComp
+                          message={msg}
+                          isOwn={msg.username === username}
+                          username={username}
+                          isGrouped={isGrouped(i)}
+                          isAdmin={isAdmin}
+                          senderTitle={sender?.title}
+                          replyMessage={replyLookup(msg.reply_to)}
+                          onReply={(m) => setReplyingTo(m)}
+                          onEdit={handleEditMessage}
+                          onPin={handleTogglePin}
+                          onOpenProfile={handleOpenProfile}
+                          onOpenLightbox={(url) => setLightboxUrl(url)}
+                          isMuted={isMuted()}
+                          pollData={pollLookup(msg.content)}
+                        />
+                      </Fragment>
                     );
                   })}
                 </div>
@@ -928,11 +1070,12 @@ export default function ChatPage() {
                       <span className="text-sm text-orange-400/80 font-medium">Slow down — cooldown active</span>
                     </div>
                   ) : (
-                  <div className="relative flex items-center gap-2">
+                  <div className="relative flex items-center gap-2" onPaste={handlePaste}>
                     <AnimatePresence>{showGifPicker && <GifPicker onSelect={(url) => { sendMediaMessage(url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}</AnimatePresence>
                     <AnimatePresence>{showEmojiPicker && <EmojiPicker onSelect={(emoji) => { setNewMessage((prev) => prev + emoji); setShowEmojiPicker(false); }} onClose={() => setShowEmojiPicker(false)} />}</AnimatePresence>
+                    <AnimatePresence>{showPollCreator && <PollCreator onSubmit={handleCreatePoll} onCancel={() => setShowPollCreator(false)} />}</AnimatePresence>
 
-                    <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileUpload} className="hidden" />
+                    <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" onChange={handleFileUpload} className="hidden" />
                     <motion.button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
@@ -972,18 +1115,33 @@ export default function ChatPage() {
                       🎭
                     </motion.button>
 
-                    <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
-                    <motion.button
-                      onClick={sendMessage}
-                      disabled={!newMessage.trim()}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.9 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                      className="bg-gradient-to-r from-accent to-pink hover:shadow-lg hover:shadow-accent/25 disabled:opacity-30 disabled:hover:shadow-none text-white px-3 md:px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow send-pulse"
-                    >
-                      <span className="text-sm font-semibold hidden sm:inline">Send</span>
-                      <span className="text-sm sm:hidden">→</span>
-                    </motion.button>
+                    {showVoiceRecorder ? (
+                      <VoiceRecorder onSend={handleVoiceMessage} onCancel={() => setShowVoiceRecorder(false)} />
+                    ) : (
+                      <>
+                        <motion.button
+                          onClick={() => setShowVoiceRecorder(true)}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          className="text-muted hover:text-accent transition-colors cursor-pointer text-lg shrink-0 p-1.5 rounded-xl hover:bg-accent/10"
+                          title="Voice message"
+                        >
+                          🎤
+                        </motion.button>
+                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={allUsers} currentUser={username} />
+                        <motion.button
+                          onClick={sendMessage}
+                          disabled={!newMessage.trim()}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.9 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                          className="bg-gradient-to-r from-accent to-pink hover:shadow-lg hover:shadow-accent/25 disabled:opacity-30 disabled:hover:shadow-none text-white px-3 md:px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 btn-glow send-pulse"
+                        >
+                          <span className="text-sm font-semibold hidden sm:inline">Send</span>
+                          <span className="text-sm sm:hidden">→</span>
+                        </motion.button>
+                      </>
+                    )}
                   </div>
                   )}
                 </div>
@@ -1009,7 +1167,7 @@ export default function ChatPage() {
 
           {activeRoom && activeRoom.type !== "dm" && (
             <div className="hidden lg:block w-56 border-l border-border">
-              <OnlineUsers users={onlineUsers} />
+              <OnlineUsers users={onlineUsers} allUsers={allUsers} />
             </div>
           )}
         </div>

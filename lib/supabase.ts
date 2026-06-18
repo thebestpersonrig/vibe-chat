@@ -5,9 +5,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholde
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function uploadImage(file: File): Promise<string | null> {
+export async function uploadImage(file: File, prefix = ""): Promise<string | null> {
   const ext = file.name.split(".").pop() ?? "png";
-  const path = `${crypto.randomUUID()}.${ext}`;
+  const path = `${prefix}${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from("media").upload(path, file, {
     cacheControl: "3600",
     upsert: false,

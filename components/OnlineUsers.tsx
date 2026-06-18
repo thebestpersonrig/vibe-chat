@@ -1,14 +1,15 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPresence } from "@/lib/types";
+import { UserPresence, User } from "@/lib/types";
 import Avatar from "@/components/Avatar";
 
 interface OnlineUsersProps {
   users: UserPresence[];
+  allUsers?: User[];
 }
 
-export default function OnlineUsers({ users }: OnlineUsersProps) {
+export default function OnlineUsers({ users, allUsers = [] }: OnlineUsersProps) {
   return (
     <div className="w-56 h-full glass-strong flex flex-col">
       <div className="p-4 border-b border-border">
@@ -32,7 +33,10 @@ export default function OnlineUsers({ users }: OnlineUsersProps) {
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-surface-hover/40 transition-all group cursor-default"
             >
               <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" showStatus />
-              <span className="text-xs text-foreground/70 group-hover:text-foreground truncate transition-colors">{user.username}</span>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs text-foreground/70 group-hover:text-foreground truncate block transition-colors">{user.username}</span>
+                {(() => { const u = allUsers.find(a => a.username === user.username); return u?.status_emoji ? <span className="text-[9px] text-muted/50 truncate block">{u.status_emoji} {u.status_text || ""}</span> : null; })()}
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>

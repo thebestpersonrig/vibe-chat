@@ -29,9 +29,10 @@ interface SidebarProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   onPasswordChange: (newPassword: string) => Promise<boolean>;
+  onSetStatus: (emoji: string, text: string) => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange }: SidebarProps) {
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange, onSetStatus }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [showGroupDmPicker, setShowGroupDmPicker] = useState(false);
@@ -50,6 +51,9 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [showStatusEditor, setShowStatusEditor] = useState(false);
+  const [statusEmoji, setStatusEmoji] = useState("");
+  const [statusText, setStatusText] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const groupRooms = rooms.filter((r) => r.type !== "dm");
@@ -336,6 +340,52 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             </button>
           )}
 
+          {/* Status */}
+          <button
+            onClick={() => {
+              setShowStatusEditor(!showStatusEditor);
+              setStatusEmoji(currentUserData?.status_emoji || "");
+              setStatusText(currentUserData?.status_text || "");
+            }}
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border bg-surface/50 border-border text-muted hover:bg-surface-hover truncate"
+          >
+            {currentUserData?.status_emoji ? `${currentUserData.status_emoji} ${currentUserData.status_text || ""}` : "✨ Set status..."}
+          </button>
+          <AnimatePresence>
+            {showStatusEditor && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="p-3 rounded-xl bg-surface/60 border border-border space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {["😀", "🎮", "📚", "💼", "🎵", "🏋️", "😴", "🤒", "🍔", "✈️", "🔴", "🟢"].map((e) => (
+                      <button key={e} onClick={() => setStatusEmoji(e)} className={`text-sm p-1 rounded-lg cursor-pointer transition-all ${statusEmoji === e ? "bg-accent/20 scale-110 ring-1 ring-accent/40" : "hover:bg-surface-hover"}`}>{e}</button>
+                    ))}
+                  </div>
+                  <input
+                    value={statusText}
+                    onChange={(e) => setStatusText(e.target.value)}
+                    placeholder="What's up?"
+                    maxLength={40}
+                    className="w-full bg-background/50 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => { onSetStatus(statusEmoji, statusText); setShowStatusEditor(false); }}
+                      className="flex-1 text-[10px] bg-accent/20 hover:bg-accent/30 text-accent py-1.5 rounded-lg cursor-pointer transition-colors font-medium"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => { onSetStatus("", ""); setShowStatusEditor(false); }}
+                      className="flex-1 text-[10px] bg-surface hover:bg-surface-hover text-muted py-1.5 rounded-lg cursor-pointer transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Sound toggle + password change row */}
           <div className="flex gap-1.5">
             <button
@@ -400,6 +450,9 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                 {isAdmin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
                 {currentUserData?.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border">{currentUserData.title}</span>}
               </div>
+              {currentUserData?.status_emoji && (
+                <div className="text-[10px] text-muted/60 truncate">{currentUserData.status_emoji} {currentUserData.status_text || ""}</div>
+              )}
               <div className="flex items-center gap-2">
                 {avatarError ? (
                   <span className="text-[10px] text-pink">{avatarError}</span>
