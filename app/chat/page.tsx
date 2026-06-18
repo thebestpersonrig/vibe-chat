@@ -388,15 +388,19 @@ export default function ChatPage() {
     }]);
     if (isNearBottomRef.current) setTimeout(() => scrollToBottom(), 20);
 
+    const insertPayload: Record<string, unknown> = { room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous };
+    if (replyId) insertPayload.reply_to = replyId;
+
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous, reply_to: replyId })
+      .insert(insertPayload)
       .select()
       .single();
 
     if (data) {
       setMessages((prev) => prev.map((m) => m.id === tempId ? { ...data, reactions: [] } : m));
     } else if (error) {
+      console.error("Send failed:", error.message);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     }
   }
@@ -447,12 +451,14 @@ export default function ChatPage() {
   }
 
   async function handleEditMessage(id: string, newContent: string) {
-    await supabase.from("messages").update({ content: newContent, edited_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("messages").update({ content: newContent, edited_at: new Date().toISOString() }).eq("id", id);
+    if (error) { console.error("Edit failed:", error.message); return; }
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
   }
 
   async function handleTogglePin(id: string, pinned: boolean) {
-    await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
+    const { error } = await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
+    if (error) { console.error("Pin failed:", error.message); return; }
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_pinned: pinned } : m));
   }
 
