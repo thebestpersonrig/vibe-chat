@@ -37,7 +37,6 @@ export interface User {
   title?: string | null;
   balance?: number;
   muted_until?: string | null;
-  is_banned?: boolean;
   created_at: string;
 }
 

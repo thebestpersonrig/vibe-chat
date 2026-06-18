@@ -109,11 +109,6 @@ export default function ChatPage() {
           setLoading(false);
           return;
         }
-        if (data.is_banned) {
-          localStorage.removeItem("rpb-user");
-          setLoading(false);
-          return;
-        }
         setUsername(parsed.username);
         setAvatarColor(parsed.avatarColor);
         setAvatarUrl(parsed.avatarUrl || null);
@@ -585,12 +580,6 @@ export default function ChatPage() {
       .eq("username", name)
       .single();
 
-    if (existing?.is_banned) {
-      setLoginError("This account is banned");
-      setLoginChecking(false);
-      return;
-    }
-
     setLoginUsername(name);
     setLoginIsNew(!existing);
     setLoginStep("password");
@@ -636,12 +625,6 @@ export default function ChatPage() {
 
       if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
         setLoginError("Wrong password");
-        setLoginChecking(false);
-        return;
-      }
-
-      if (existing.is_banned) {
-        setLoginError("This account is banned");
         setLoginChecking(false);
         return;
       }

@@ -77,12 +77,6 @@ export default function Home() {
       .eq("username", trimmed)
       .single();
 
-    if (existing?.is_banned) {
-      setError("This account is banned");
-      setChecking(false);
-      return;
-    }
-
     setIsNewUser(!existing);
     setStep("password");
     setChecking(false);
@@ -130,12 +124,6 @@ export default function Home() {
 
       if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
         setError("Wrong password");
-        setChecking(false);
-        return;
-      }
-
-      if (existing.is_banned) {
-        setError("This account is banned");
         setChecking(false);
         return;
       }

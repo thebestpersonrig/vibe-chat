@@ -14,7 +14,6 @@ create table if not exists users (
   title text,
   balance integer default 0,
   muted_until timestamptz,
-  is_banned boolean default false,
   created_at timestamptz default now()
 );
 
