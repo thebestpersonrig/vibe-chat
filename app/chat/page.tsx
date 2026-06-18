@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
-import { hashPassword } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import MessageComp from "@/components/Message";
 import MentionInput from "@/components/MentionInput";
@@ -212,19 +211,26 @@ export default function ChatPage() {
     const { data } = await supabase.from("rooms").select("*").order("created_at");
     if (!data) return;
 
-    const { data: members } = await supabase.from("room_members").select("*");
-    const myDmRoomIds = new Set(
-      (members || []).filter((m) => m.username === username).map((m) => m.room_id)
-    );
+    const { data: myMemberships } = await supabase
+      .from("room_members")
+      .select("room_id")
+      .eq("username", username);
+    const myDmRoomIds = new Set((myMemberships || []).map((m) => m.room_id));
 
     const visible = data.filter((r) => r.type !== "dm" || myDmRoomIds.has(r.id));
 
+    const dmRoomIds = visible.filter((r) => r.type === "dm").map((r) => r.id);
     const names: Record<string, string> = {};
-    for (const room of visible) {
-      if (room.type === "dm") {
-        const roomMembers = (members || []).filter((m) => m.room_id === room.id);
-        const others = roomMembers.filter((m) => m.username !== username);
-        names[room.id] = others.length === 1 ? others[0].username : others.map((o) => o.username).join(", ");
+    if (dmRoomIds.length > 0) {
+      const { data: dmMembers } = await supabase
+        .from("room_members")
+        .select("room_id, username")
+        .in("room_id", dmRoomIds);
+      for (const room of visible) {
+        if (room.type === "dm") {
+          const others = (dmMembers || []).filter((m) => m.room_id === room.id && m.username !== username);
+          names[room.id] = others.length === 1 ? others[0].username : others.map((o) => o.username).join(", ");
+        }
       }
     }
     setDmNames(names);
@@ -238,7 +244,10 @@ export default function ChatPage() {
   }
 
   async function loadAllUsers() {
-    const { data } = await supabase.from("users").select("*").order("username");
+    const { data } = await supabase
+      .from("users")
+      .select("id, username, avatar_color, avatar_url, is_admin, title, balance, muted_until, status_emoji, status_text, created_at")
+      .order("username");
     if (data) setAllUsers(data);
   }
 
@@ -335,6 +344,11 @@ export default function ChatPage() {
       supabase.removeChannel(channel);
     };
   }, [activeRoom?.id, username]);
+
+  useEffect(() => {
+    if (!channelRef.current || !username) return;
+    channelRef.current.track({ username, avatar_color: avatarColor, avatar_url: avatarUrl, online_at: new Date().toISOString() });
+  }, [avatarColor, avatarUrl]);
 
   async function loadMessages(roomId: string) {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -594,15 +608,21 @@ export default function ChatPage() {
   }
 
   async function handlePasswordChange(newPw: string): Promise<boolean> {
-    const hashed = await hashPassword(newPw);
-    const { error } = await supabase.from("users").update({ password_hash: hashed }).eq("username", username);
-    return !error;
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "change-password", username, password: newPw }),
+    });
+    return res.ok;
   }
 
   function broadcastTyping() {
     if (typingTimeoutRef.current) return;
     channelRef.current?.send({ type: "broadcast", event: "typing", payload: { username } });
-    typingTimeoutRef.current = setTimeout(() => { typingTimeoutRef.current = null; }, 2000);
+    typingTimeoutRef.current = setTimeout(() => {
+      typingTimeoutRef.current = null;
+      channelRef.current?.send({ type: "broadcast", event: "typing", payload: { username } });
+    }, 2000);
   }
 
   function isGrouped(index: number): boolean {
@@ -695,7 +715,7 @@ export default function ChatPage() {
 
     const { data: existing } = await supabase
       .from("users")
-      .select("*")
+      .select("username")
       .eq("username", name)
       .single();
 
@@ -717,15 +737,17 @@ export default function ChatPage() {
     setLoginChecking(true);
     setLoginError("");
 
-    const hashed = await hashPassword(password);
-
     if (loginIsNew) {
       const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-      const { error: insertErr } = await supabase.from("users").insert({ username: loginUsername, avatar_color: color, password_hash: hashed });
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color }),
+      });
+      const data = await res.json();
 
-      if (insertErr) {
-        console.error("Signup error:", insertErr);
-        setLoginError(insertErr.code === "23505" ? "Username just got taken" : insertErr.message);
+      if (!res.ok) {
+        setLoginError(res.status === 409 ? "Username just got taken" : data.error || "Signup failed");
         setLoginChecking(false);
         return;
       }
@@ -736,27 +758,24 @@ export default function ChatPage() {
       setAvatarUrl(null);
       setIsAdmin(false);
     } else {
-      const { data: existing } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", loginUsername)
-        .single();
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login", username: loginUsername, password }),
+      });
+      const data = await res.json();
 
-      if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
+      if (!res.ok) {
         setLoginError("Wrong password");
         setLoginChecking(false);
         return;
       }
 
-      if (!existing.password_hash) {
-        await supabase.from("users").update({ password_hash: hashed }).eq("username", loginUsername);
-      }
-
-      localStorage.setItem("rpb-user", JSON.stringify({ username: existing.username, avatarColor: existing.avatar_color, avatarUrl: existing.avatar_url }));
-      setUsername(existing.username);
-      setAvatarColor(existing.avatar_color);
-      setAvatarUrl(existing.avatar_url || null);
-      setIsAdmin(existing.is_admin || false);
+      localStorage.setItem("rpb-user", JSON.stringify({ username: data.user.username, avatarColor: data.user.avatarColor, avatarUrl: data.user.avatarUrl }));
+      setUsername(data.user.username);
+      setAvatarColor(data.user.avatarColor);
+      setAvatarUrl(data.user.avatarUrl || null);
+      setIsAdmin(data.user.isAdmin || false);
     }
 
     setLoginChecking(false);
@@ -988,7 +1007,7 @@ export default function ChatPage() {
                   )}
                   {messages.map((msg, i) => {
                     const sender = allUsers.find((u) => u.username === msg.username);
-                    const showDivider = unreadDividerMsgId && ((i > 0 && messages[i - 1].id === unreadDividerMsgId && msg.id !== unreadDividerMsgId) || (i === 0 && !messages.some(m => m.id === unreadDividerMsgId)));
+                    const showDivider = unreadDividerMsgId && i > 0 && messages[i - 1].id === unreadDividerMsgId && msg.id !== unreadDividerMsgId;
                     return (
                       <Fragment key={msg.id}>
                         {showDivider && (

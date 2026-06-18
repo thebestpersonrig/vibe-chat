@@ -11,9 +11,8 @@ export default function AudioPlayer({ url }: { url: string }) {
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) audio.pause();
-    else audio.play();
-    setPlaying(!playing);
+    if (audio.paused) audio.play();
+    else audio.pause();
   }
 
   function handleTimeUpdate() {

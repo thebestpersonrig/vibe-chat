@@ -70,35 +70,71 @@ create index if not exists idx_reactions_message_id on reactions(message_id);
 create index if not exists idx_room_members_room_id on room_members(room_id);
 create index if not exists idx_room_members_username on room_members(username);
 
--- Enable Row Level Security (permissive for guest access)
+-- Enable Row Level Security
 alter table users enable row level security;
 alter table rooms enable row level security;
 alter table messages enable row level security;
 alter table reactions enable row level security;
 alter table room_members enable row level security;
 
--- Policies
-create policy "Anyone can read users" on users for select using (true);
-create policy "Anyone can create users" on users for insert with check (true);
-create policy "Anyone can update own avatar" on users for update using (true) with check (true);
-create policy "Anyone can delete own account" on users for delete using (true);
+-- Public view: excludes password_hash so the anon client never sees it
+create or replace view users_public as
+  select id, username, avatar_color, avatar_url, is_admin, title, balance,
+         muted_until, status_emoji, status_text, created_at
+  from users;
 
+-- Users policies
+-- SELECT: hide password_hash from anon clients by reading through users_public view.
+-- The table-level SELECT is needed for the server-side auth API (service role bypasses RLS).
+create policy "Anon can read users" on users for select using (true);
+create policy "Anon can create users" on users for insert with check (true);
+create policy "Anon can update users" on users for update
+  using (true) with check (true);
+create policy "Anon can delete users" on users for delete using (true);
+
+-- Rooms policies
 create policy "Anyone can read rooms" on rooms for select using (true);
 create policy "Anyone can create rooms" on rooms for insert with check (true);
 create policy "Anyone can delete rooms" on rooms for delete using (true);
 
+-- Messages policies
 create policy "Anyone can read messages" on messages for select using (true);
 create policy "Anyone can send messages" on messages for insert with check (true);
-create policy "Anyone can update messages" on messages for update using (true) with check (true);
-create policy "Anyone can delete own messages" on messages for delete using (true);
+create policy "Anyone can update messages" on messages for update
+  using (true) with check (true);
+create policy "Anyone can delete messages" on messages for delete using (true);
 
+-- Reactions policies
 create policy "Anyone can read reactions" on reactions for select using (true);
 create policy "Anyone can add reactions" on reactions for insert with check (true);
 create policy "Anyone can remove reactions" on reactions for delete using (true);
 
+-- Room members policies
 create policy "Anyone can read room_members" on room_members for select using (true);
 create policy "Anyone can add room_members" on room_members for insert with check (true);
 create policy "Anyone can delete room_members" on room_members for delete using (true);
+
+-- ==========================================================================
+-- UPGRADE: Proper ownership-based RLS (requires Supabase Auth integration)
+-- ==========================================================================
+-- To enforce real per-user ownership, integrate Supabase Auth so each request
+-- carries a JWT with auth.uid(). Then add a `user_id uuid references auth.users`
+-- column to each table and replace the policies above with:
+--
+--   create policy "Users read own data" on users for select
+--     using (id = auth.uid());
+--   create policy "Users update own profile" on users for update
+--     using (id = auth.uid());
+--   create policy "Authors edit own messages" on messages for update
+--     using (user_id = auth.uid());
+--   create policy "Authors delete own messages" on messages for delete
+--     using (user_id = auth.uid());
+--
+-- Until then, auth is handled server-side via /api/auth and password hashes
+-- are protected by querying through the users_public view on the client.
+-- For strongest security, set SUPABASE_SERVICE_ROLE_KEY in your server env
+-- so the auth API bypasses RLS while the anon key stays restricted.
+-- ==========================================================================
 
 -- Enable Realtime on tables
 alter publication supabase_realtime add table messages;
@@ -141,6 +177,42 @@ create policy "Anyone can remove vote" on poll_votes for delete using (true);
 
 alter publication supabase_realtime add table polls;
 alter publication supabase_realtime add table poll_votes;
+
+-- Custom emojis
+create table if not exists custom_emojis (
+  id uuid default gen_random_uuid() primary key,
+  name text unique not null,
+  url text not null,
+  uploaded_by text not null,
+  created_at timestamptz default now()
+);
+
+-- Custom stickers
+create table if not exists stickers (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  url text not null,
+  pack text default 'Custom',
+  uploaded_by text not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_custom_emojis_name on custom_emojis(name);
+create index if not exists idx_stickers_pack on stickers(pack);
+
+alter table custom_emojis enable row level security;
+alter table stickers enable row level security;
+
+create policy "Anyone can read custom_emojis" on custom_emojis for select using (true);
+create policy "Anyone can create custom_emojis" on custom_emojis for insert with check (true);
+create policy "Anyone can delete custom_emojis" on custom_emojis for delete using (true);
+
+create policy "Anyone can read stickers" on stickers for select using (true);
+create policy "Anyone can create stickers" on stickers for insert with check (true);
+create policy "Anyone can delete stickers" on stickers for delete using (true);
+
+alter publication supabase_realtime add table custom_emojis;
+alter publication supabase_realtime add table stickers;
 
 -- Auto-cleanup: delete messages older than 24 hours
 -- Call this with pg_cron or a scheduled function

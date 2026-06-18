@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { AVATAR_COLORS } from "@/lib/types";
-import { hashPassword } from "@/lib/auth";
 
 function Particles() {
   return (
@@ -73,7 +72,7 @@ export default function Home() {
 
     const { data: existing } = await supabase
       .from("users")
-      .select("*")
+      .select("username")
       .eq("username", trimmed)
       .single();
 
@@ -93,21 +92,22 @@ export default function Home() {
     setError("");
 
     const trimmed = username.trim();
-    const hashed = await hashPassword(password);
 
     if (isNewUser) {
       const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-      const { error: insertErr } = await supabase
-        .from("users")
-        .insert({ username: trimmed, avatar_color: color, password_hash: hashed });
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "signup", username: trimmed, password, avatarColor: color }),
+      });
+      const data = await res.json();
 
-      if (insertErr) {
-        if (insertErr.code === "23505") {
+      if (!res.ok) {
+        if (res.status === 409) {
           setError("Username just got taken — try another");
           setStep("username");
         } else {
-          console.error("Signup error:", insertErr);
-          setError(insertErr.message);
+          setError(data.error || "Signup failed");
         }
         setChecking(false);
         return;
@@ -116,26 +116,23 @@ export default function Home() {
       localStorage.setItem("rpb-user", JSON.stringify({ username: trimmed, avatarColor: color, avatarUrl: null }));
       router.push("/chat");
     } else {
-      const { data: existing } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", trimmed)
-        .single();
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login", username: trimmed, password }),
+      });
+      const data = await res.json();
 
-      if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
+      if (!res.ok) {
         setError("Wrong password");
         setChecking(false);
         return;
       }
 
-      if (!existing.password_hash) {
-        await supabase.from("users").update({ password_hash: hashed }).eq("username", trimmed);
-      }
-
       localStorage.setItem("rpb-user", JSON.stringify({
-        username: existing.username,
-        avatarColor: existing.avatar_color,
-        avatarUrl: existing.avatar_url,
+        username: data.user.username,
+        avatarColor: data.user.avatarColor,
+        avatarUrl: data.user.avatarUrl,
       }));
       router.push("/chat");
     }

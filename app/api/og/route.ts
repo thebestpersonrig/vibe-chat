@@ -1,7 +1,22 @@
+function isAllowedUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]") return false;
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.)/.test(hostname)) return false;
+    if (hostname.endsWith(".internal") || hostname.endsWith(".local")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
   if (!url) return Response.json({}, { status: 400 });
+  if (!isAllowedUrl(url)) return Response.json({}, { status: 400 });
 
   try {
     const controller = new AbortController();
@@ -9,6 +24,7 @@ export async function GET(request: Request) {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": "bot" },
+      redirect: "manual",
     });
     clearTimeout(timeout);
 

@@ -35,6 +35,13 @@ export default function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) 
     })();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = () => {
+          recorder.stream.getTracks().forEach((t) => t.stop());
+        };
+        recorder.stop();
+      }
     };
   }, [onCancel]);
 

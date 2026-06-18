@@ -72,6 +72,23 @@ export interface PollVote {
   option_index: number;
 }
 
+export interface CustomEmoji {
+  id: string;
+  name: string;
+  url: string;
+  uploaded_by: string;
+  created_at: string;
+}
+
+export interface Sticker {
+  id: string;
+  name: string;
+  url: string;
+  pack: string;
+  uploaded_by: string;
+  created_at: string;
+}
+
 export interface GiphyGif {
   id: string;
   title: string;
