@@ -11,6 +11,7 @@ interface AdminPanelProps {
   onClose: () => void;
   onUpdate: () => void;
   onDeleteUser: (username: string) => void;
+  onRenameUser: (oldUsername: string, newUsername: string) => Promise<boolean>;
 }
 
 const MUTE_DURATIONS = [
@@ -37,9 +38,11 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
+  const [renameInput, setRenameInput] = useState("");
+  const [renameError, setRenameError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
 
@@ -50,6 +53,24 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser }
     }
     setEditingUser(user.username);
     setTitleInput(user.title || "");
+    setRenameInput(user.username);
+    setRenameError("");
+  }
+
+  async function saveRename(oldUsername: string) {
+    const trimmed = renameInput.trim();
+    if (!trimmed || trimmed.length < 2) { setRenameError("Min 2 characters"); return; }
+    if (trimmed === oldUsername) return;
+    if (allUsers.some(u => u.username.toLowerCase() === trimmed.toLowerCase() && u.username !== oldUsername)) {
+      setRenameError("Username taken");
+      return;
+    }
+    setSaving(true);
+    setRenameError("");
+    const ok = await onRenameUser(oldUsername, trimmed);
+    if (!ok) setRenameError("Rename failed");
+    else setEditingUser(trimmed);
+    setSaving(false);
   }
 
   async function saveTitle(username: string) {
@@ -148,6 +169,27 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser }
                               Save
                             </button>
                           </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">Rename</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={renameInput}
+                              onChange={(e) => { setRenameInput(e.target.value); setRenameError(""); }}
+                              maxLength={20}
+                              className="flex-1 bg-background/50 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
+                            />
+                            <button
+                              onClick={() => saveRename(user.username)}
+                              disabled={saving || renameInput.trim() === user.username}
+                              className="text-[10px] bg-accent/20 hover:bg-accent/30 text-accent px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                            >
+                              Rename
+                            </button>
+                          </div>
+                          {renameError && <p className="text-[10px] text-pink mt-1">{renameError}</p>}
                         </div>
 
                         <div>

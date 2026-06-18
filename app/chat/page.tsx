@@ -206,6 +206,14 @@ export default function ChatPage() {
           alert("Your account has been deleted by an admin.");
         }
       })
+      .on("broadcast", { event: "rename" }, ({ payload: p }) => {
+        if (p.oldUsername === username) {
+          setUsername(p.newUsername);
+          const stored = JSON.parse(localStorage.getItem("rpb-user") || "{}");
+          localStorage.setItem("rpb-user", JSON.stringify({ ...stored, username: p.newUsername }));
+        }
+        setMessages(prev => prev.map(m => m.username === p.oldUsername ? { ...m, username: p.newUsername } : m));
+      })
       .subscribe();
     kickChannelRef.current = kickChannel;
 
@@ -736,6 +744,17 @@ export default function ChatPage() {
     loadAllUsers();
   }
 
+  async function handleAdminRenameUser(oldUsername: string, newUsername: string): Promise<boolean> {
+    const { data: existing } = await supabase.from("users").select("username").eq("username", newUsername).single();
+    if (existing) return false;
+    const { error } = await supabase.rpc("rename_user", { old_username: oldUsername, new_username: newUsername });
+    if (error) { console.error("Rename failed:", error.message); return false; }
+    kickChannelRef.current?.send({ type: "broadcast", event: "rename", payload: { oldUsername, newUsername } });
+    setMessages(prev => prev.map(m => m.username === oldUsername ? { ...m, username: newUsername } : m));
+    loadAllUsers();
+    return true;
+  }
+
   async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -939,7 +958,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} />
         )}
       </AnimatePresence>
 

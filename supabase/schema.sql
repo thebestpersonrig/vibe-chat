@@ -220,6 +220,21 @@ create or replace function cleanup_old_messages() returns void as $$
   delete from messages where created_at < now() - interval '24 hours';
 $$ language sql security definer;
 
+-- Rename user across all tables
+create or replace function rename_user(old_username text, new_username text)
+returns void as $$
+begin
+  update users set username = new_username where username = old_username;
+  update messages set username = new_username where username = old_username;
+  update reactions set username = new_username where username = old_username;
+  update room_members set username = new_username where username = old_username;
+  update polls set username = new_username where username = old_username;
+  update poll_votes set username = new_username where username = old_username;
+  update custom_emojis set uploaded_by = new_username where uploaded_by = old_username;
+  update stickers set uploaded_by = new_username where uploaded_by = old_username;
+end;
+$$ language plpgsql security definer;
+
 -- Seed a default room
 insert into rooms (name, emoji, type) values ('General', '💬', 'group')
 on conflict do nothing;
