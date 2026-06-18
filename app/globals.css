@@ -256,6 +256,14 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  cursor: default;
+}
+
+input, textarea, [contenteditable="true"] {
+  cursor: text;
+}
+a, button, [role="button"], select, label[for], summary {
+  cursor: pointer;
 }
 
 /* ===== GLASS ===== */
