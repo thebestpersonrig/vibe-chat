@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS } from "@/lib/types";
@@ -12,7 +12,15 @@ import MentionInput from "@/components/MentionInput";
 import OnlineUsers from "@/components/OnlineUsers";
 import TypingIndicator from "@/components/TypingIndicator";
 import GifPicker from "@/components/GifPicker";
+import EmojiPicker from "@/components/EmojiPicker";
 import AdminPanel from "@/components/AdminPanel";
+import ImageLightbox from "@/components/ImageLightbox";
+import UserProfileCard from "@/components/UserProfileCard";
+
+const MAX_UPLOAD_MB = 10;
+const SPAM_WINDOW_MS = 4000;
+const SPAM_THRESHOLD = 5;
+const SPAM_COOLDOWN_MS = 3000;
 
 export default function ChatPage() {
   const [username, setUsername] = useState("");
@@ -29,6 +37,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -41,6 +50,12 @@ export default function ChatPage() {
   const [dmNames, setDmNames] = useState<Record<string, string>>({});
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<MessageType | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [spamCooldown, setSpamCooldown] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -49,8 +64,28 @@ export default function ChatPage() {
   const hasSetInitialRoom = useRef(false);
   const activeRoomRef = useRef<Room | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const spamTimestamps = useRef<number[]>([]);
 
   activeRoomRef.current = activeRoom;
+
+  // Tab title with unread count
+  useEffect(() => {
+    const total = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+    document.title = total > 0 ? `(${total}) Radiant Power Batch` : "Radiant Power Batch";
+  }, [unreadCounts]);
+
+  // Sound preference from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("rpb-sound");
+    if (stored !== null) setSoundEnabled(stored === "true");
+  }, []);
+
+  // Request notification permission on first load
+  useEffect(() => {
+    if (username && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [username]);
 
   useEffect(() => {
     async function init() {
@@ -59,6 +94,11 @@ export default function ChatPage() {
         const parsed = JSON.parse(stored);
         const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
         if (!data) {
+          localStorage.removeItem("rpb-user");
+          setLoading(false);
+          return;
+        }
+        if (data.is_banned) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
           return;
@@ -85,8 +125,9 @@ export default function ChatPage() {
         if (room.type === "dm") {
           const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
           if (!members?.some((m) => m.username === username)) return;
-          const other = members.find((m) => m.username !== username);
-          if (other) setDmNames((prev) => ({ ...prev, [room.id]: other.username }));
+          const others = members.filter((m) => m.username !== username);
+          if (others.length === 1) setDmNames((prev) => ({ ...prev, [room.id]: others[0].username }));
+          else if (others.length > 1) setDmNames((prev) => ({ ...prev, [room.id]: others.map((o) => o.username).join(", ") }));
         }
         setRooms((prev) => prev.some((r) => r.id === room.id) ? prev : [...prev, room]);
       })
@@ -119,6 +160,12 @@ export default function ChatPage() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, (payload) => {
         const updated = payload.new as User;
         setAllUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u));
+        if (updated.username === username && updated.is_banned) {
+          localStorage.removeItem("rpb-user");
+          setUsername("");
+          setActiveRoom(null);
+          setMessages([]);
+        }
       })
       .subscribe();
 
@@ -147,8 +194,8 @@ export default function ChatPage() {
     for (const room of visible) {
       if (room.type === "dm") {
         const roomMembers = (members || []).filter((m) => m.room_id === room.id);
-        const other = roomMembers.find((m) => m.username !== username);
-        names[room.id] = other?.username || room.name;
+        const others = roomMembers.filter((m) => m.username !== username);
+        names[room.id] = others.length === 1 ? others[0].username : others.map((o) => o.username).join(", ");
       }
     }
     setDmNames(names);
@@ -170,6 +217,8 @@ export default function ChatPage() {
     if (!activeRoom || !username) return;
     setMessages([]);
     setTypingUsers([]);
+    setReplyingTo(null);
+    setShowPinned(false);
     loadMessages(activeRoom.id);
     setNewMsgCount(0);
     setUnreadCounts((prev) => ({ ...prev, [activeRoom.id]: 0 }));
@@ -184,18 +233,22 @@ export default function ChatPage() {
         if (newMsg.username === username) return;
         setMessages((prev) => [...prev, newMsg]);
         if (newMsg.content.toLowerCase().includes(`@${username.toLowerCase()}`)) {
-          playMentionSound();
+          if (soundEnabled) playMentionSound();
           if (Notification.permission === "granted") {
-            new Notification(`${newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
+            new Notification(`${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`, { body: newMsg.content, icon: "/favicon.ico" });
           }
         } else {
-          playMessageSound();
+          if (soundEnabled) playMessageSound();
         }
         if (isNearBottomRef.current) {
           setTimeout(() => scrollToBottom(), 50);
         } else {
           setNewMsgCount((c) => c + 1);
         }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `room_id=eq.${activeRoom.id}` }, (payload) => {
+        const updated = payload.new as MessageType;
+        setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, ...updated, reactions: m.reactions } : m));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
         setMessages((prev) => prev.filter((m) => m.id !== (payload.old as { id: string }).id));
@@ -283,10 +336,26 @@ export default function ChatPage() {
     return `${Math.floor(hrs / 24)}d`;
   }
 
+  function checkSpam(): boolean {
+    const now = Date.now();
+    spamTimestamps.current = spamTimestamps.current.filter((t) => now - t < SPAM_WINDOW_MS);
+    spamTimestamps.current.push(now);
+    if (spamTimestamps.current.length >= SPAM_THRESHOLD) {
+      setSpamCooldown(true);
+      spamTimestamps.current = [];
+      setTimeout(() => setSpamCooldown(false), SPAM_COOLDOWN_MS);
+      return true;
+    }
+    return false;
+  }
+
   async function sendMessage() {
     const content = newMessage.trim();
-    if (!content || !activeRoom || isMuted()) return;
+    if (!content || !activeRoom || isMuted() || spamCooldown) return;
+    if (checkSpam()) return;
     setNewMessage("");
+    const replyId = replyingTo?.id || null;
+    setReplyingTo(null);
 
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [...prev, {
@@ -297,6 +366,7 @@ export default function ChatPage() {
       avatar_url: avatarUrl,
       content,
       is_anonymous: isAnonymous,
+      reply_to: replyId,
       created_at: new Date().toISOString(),
       reactions: [],
     }]);
@@ -304,7 +374,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous, reply_to: replyId })
       .select()
       .single();
 
@@ -316,7 +386,7 @@ export default function ChatPage() {
   }
 
   async function sendMediaMessage(url: string) {
-    if (!activeRoom || isMuted()) return;
+    if (!activeRoom || isMuted() || spamCooldown) return;
 
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [...prev, {
@@ -348,11 +418,43 @@ export default function ChatPage() {
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      alert(`File too large — max ${MAX_UPLOAD_MB}MB`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setUploading(true);
     const url = await uploadImage(file);
     if (url) await sendMediaMessage(url);
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleEditMessage(id: string, newContent: string) {
+    await supabase.from("messages").update({ content: newContent, edited_at: new Date().toISOString() }).eq("id", id);
+    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
+  }
+
+  async function handleTogglePin(id: string, pinned: boolean) {
+    await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
+    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_pinned: pinned } : m));
+  }
+
+  function handleOpenProfile(uname: string) {
+    const user = allUsers.find((u) => u.username === uname);
+    if (user) setProfileUser(user);
+  }
+
+  function handleToggleSound() {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    localStorage.setItem("rpb-sound", String(next));
+  }
+
+  async function handlePasswordChange(newPw: string): Promise<boolean> {
+    const hashed = await hashPassword(newPw);
+    const { error } = await supabase.from("users").update({ password_hash: hashed }).eq("username", username);
+    return !error;
   }
 
   function broadcastTyping() {
@@ -365,6 +467,7 @@ export default function ChatPage() {
     if (index === 0) return false;
     const prev = messages[index - 1];
     const curr = messages[index];
+    if (curr.is_anonymous || prev.is_anonymous) return false;
     if (prev.username !== curr.username) return false;
     return new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime() < 120000;
   }
@@ -377,11 +480,9 @@ export default function ChatPage() {
 
     if (myRooms && theirRooms) {
       const myRoomIds = new Set(myRooms.map((r) => r.room_id));
-      const overlap = theirRooms.find((r) => myRoomIds.has(r.room_id));
-      if (overlap) {
-        const existing = rooms.find((r) => r.id === overlap.room_id && r.type === "dm");
-        if (existing) { setActiveRoom(existing); return; }
-      }
+      const overlaps = theirRooms.filter((r) => myRoomIds.has(r.room_id));
+      const existingDm = overlaps.map((o) => rooms.find((r) => r.id === o.room_id && r.type === "dm")).find(Boolean);
+      if (existingDm) { setActiveRoom(existingDm); return; }
     }
 
     const { data: room, error } = await supabase.from("rooms").insert({ name: `${username}-${targetUser}`, emoji: "💬", type: "dm" }).select().single();
@@ -395,6 +496,19 @@ export default function ChatPage() {
     if (memberErr) console.error("DM members insert failed:", memberErr.message);
 
     setDmNames((prev) => ({ ...prev, [room.id]: targetUser }));
+    setRooms((prev) => [...prev, room]);
+    setActiveRoom(room);
+  }
+
+  async function handleStartGroupDm(users: string[]) {
+    const allMembers = [username, ...users];
+    const { data: room, error } = await supabase.from("rooms").insert({ name: allMembers.join("-"), emoji: "💬", type: "dm" }).select().single();
+    if (error || !room) { console.error("Group DM create failed:", error?.message); return; }
+
+    const { error: memberErr } = await supabase.from("room_members").insert(allMembers.map((u) => ({ room_id: room.id, username: u })));
+    if (memberErr) console.error("Group DM members insert failed:", memberErr.message);
+
+    setDmNames((prev) => ({ ...prev, [room.id]: users.join(", ") }));
     setRooms((prev) => [...prev, room]);
     setActiveRoom(room);
   }
@@ -420,6 +534,12 @@ export default function ChatPage() {
       .select("*")
       .eq("username", name)
       .single();
+
+    if (existing?.is_banned) {
+      setLoginError("This account is banned");
+      setLoginChecking(false);
+      return;
+    }
 
     setLoginUsername(name);
     setLoginIsNew(!existing);
@@ -466,6 +586,12 @@ export default function ChatPage() {
 
       if (!existing || (existing.password_hash && existing.password_hash !== hashed)) {
         setLoginError("Wrong password");
+        setLoginChecking(false);
+        return;
+      }
+
+      if (existing.is_banned) {
+        setLoginError("This account is banned");
         setLoginChecking(false);
         return;
       }
@@ -518,6 +644,13 @@ export default function ChatPage() {
     : activeRoom?.name;
 
   const activeRoomDisplayEmoji = activeRoom?.type === "dm" ? "💬" : activeRoom?.emoji;
+
+  const pinnedMessages = messages.filter((m) => m.is_pinned);
+
+  const replyLookup = useCallback((id: string | null | undefined) => {
+    if (!id) return null;
+    return messages.find((m) => m.id === id) || null;
+  }, [messages]);
 
   if (loading) {
     return (
@@ -583,11 +716,21 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} />
 
       <AnimatePresence>
         {showAdminPanel && (
           <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {lightboxUrl && <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {profileUser && (
+          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} />
         )}
       </AnimatePresence>
 
@@ -621,11 +764,44 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {activeRoom && pinnedMessages.length > 0 && (
+              <button
+                onClick={() => setShowPinned(!showPinned)}
+                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${showPinned ? "bg-amber-500/15 text-amber-400" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
+              >
+                📌 {pinnedMessages.length}
+              </button>
+            )}
             {activeRoom && (
               <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
             )}
           </div>
         </div>
+
+        {/* Pinned messages bar */}
+        <AnimatePresence>
+          {showPinned && pinnedMessages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden border-b border-amber-500/20 bg-amber-500/5"
+            >
+              <div className="px-4 py-2 max-h-32 overflow-y-auto">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">📌 Pinned Messages</span>
+                  <button onClick={() => setShowPinned(false)} className="text-muted/40 hover:text-muted text-xs cursor-pointer">✕</button>
+                </div>
+                {pinnedMessages.map((msg) => (
+                  <div key={msg.id} className="text-[11px] text-foreground/70 py-0.5 truncate">
+                    <span className="text-accent/60 font-medium">{msg.is_anonymous ? "Anonymous" : msg.username}:</span>{" "}
+                    {msg.content}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 flex flex-col min-w-0 relative">
@@ -649,7 +825,21 @@ export default function ChatPage() {
                   {messages.map((msg, i) => {
                     const sender = allUsers.find((u) => u.username === msg.username);
                     return (
-                      <MessageComp key={msg.id} message={msg} isOwn={msg.username === username} username={username} isGrouped={isGrouped(i)} isAdmin={isAdmin} senderTitle={sender?.title} />
+                      <MessageComp
+                        key={msg.id}
+                        message={msg}
+                        isOwn={msg.username === username}
+                        username={username}
+                        isGrouped={isGrouped(i)}
+                        isAdmin={isAdmin}
+                        senderTitle={sender?.title}
+                        replyMessage={replyLookup(msg.reply_to)}
+                        onReply={(m) => setReplyingTo(m)}
+                        onEdit={handleEditMessage}
+                        onPin={handleTogglePin}
+                        onOpenProfile={handleOpenProfile}
+                        onOpenLightbox={(url) => setLightboxUrl(url)}
+                      />
                     );
                   })}
                 </div>
@@ -672,14 +862,42 @@ export default function ChatPage() {
 
                 <div className="p-3 shrink-0 glass-strong relative border-t border-border">
                   <div className="absolute top-0 left-0 right-0 divider-glow" />
+
+                  {/* Reply preview bar */}
+                  <AnimatePresence>
+                    {replyingTo && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-2"
+                      >
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/20">
+                          <span className="text-accent text-xs">↩️</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] text-accent/70 font-medium">{replyingTo.is_anonymous ? "Anonymous" : replyingTo.username}</span>
+                            <p className="text-[11px] text-muted/50 truncate">{replyingTo.content}</p>
+                          </div>
+                          <button onClick={() => setReplyingTo(null)} className="text-muted/40 hover:text-muted text-xs cursor-pointer">✕</button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {isMuted() ? (
                     <div className="relative flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-pink/5 border border-pink/20">
                       <span className="text-lg">🔇</span>
                       <span className="text-sm text-pink/80 font-medium">You are muted — {getMuteRemaining()} remaining</span>
                     </div>
+                  ) : spamCooldown ? (
+                    <div className="relative flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
+                      <span className="text-lg">⏳</span>
+                      <span className="text-sm text-orange-400/80 font-medium">Slow down — cooldown active</span>
+                    </div>
                   ) : (
                   <div className="relative flex items-center gap-2">
                     <AnimatePresence>{showGifPicker && <GifPicker onSelect={(url) => { sendMediaMessage(url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}</AnimatePresence>
+                    <AnimatePresence>{showEmojiPicker && <EmojiPicker onSelect={(emoji) => { setNewMessage((prev) => prev + emoji); setShowEmojiPicker(false); }} onClose={() => setShowEmojiPicker(false)} />}</AnimatePresence>
 
                     <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileUpload} className="hidden" />
                     <motion.button
@@ -701,6 +919,15 @@ export default function ChatPage() {
                       title="GIFs"
                     >
                       GIF
+                    </motion.button>
+                    <motion.button
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showEmojiPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
+                      title="Emoji picker"
+                    >
+                      😊
                     </motion.button>
                     <motion.button
                       onClick={() => setIsAnonymous(!isAnonymous)}
