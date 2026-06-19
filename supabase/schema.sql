@@ -12,7 +12,6 @@ create table if not exists users (
   password_hash text,
   is_admin boolean default false,
   is_banned boolean default false,
-  fingerprint text,
   title text,
 
   muted_until timestamptz,
@@ -216,19 +215,6 @@ create policy "Anyone can delete stickers" on stickers for delete using (true);
 
 alter publication supabase_realtime add table custom_emojis;
 alter publication supabase_realtime add table stickers;
-
--- Banned fingerprints for shadow-banning by browser
-create table if not exists banned_fingerprints (
-  id uuid default gen_random_uuid() primary key,
-  fingerprint text unique not null,
-  banned_username text not null,
-  created_at timestamptz default now()
-);
-
-alter table banned_fingerprints enable row level security;
-create policy "Anyone can read banned_fingerprints" on banned_fingerprints for select using (true);
-create policy "Anyone can add banned_fingerprints" on banned_fingerprints for insert with check (true);
-create policy "Anyone can delete banned_fingerprints" on banned_fingerprints for delete using (true);
 
 -- Auto-cleanup: delete messages older than 24 hours
 -- Call this with pg_cron or a scheduled function

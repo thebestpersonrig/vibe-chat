@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll, CustomEmoji, Sticker } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
-import { getBrowserFingerprint } from "@/lib/fingerprint";
 import Sidebar from "@/components/Sidebar";
 import MessageComp from "@/components/Message";
 import MentionInput from "@/components/MentionInput";
@@ -57,6 +56,7 @@ export default function ChatPage() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [spamCooldown, setSpamCooldown] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
@@ -68,8 +68,6 @@ export default function ChatPage() {
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
   const [previewCaption, setPreviewCaption] = useState("");
   const [showNotifBanner, setShowNotifBanner] = useState(false);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -337,6 +335,7 @@ export default function ChatPage() {
     setMessages([]);
     setTypingUsers([]);
     setReplyingTo(null);
+    setShowPinned(false);
     setShowPollCreator(false);
     setShowVoiceRecorder(false);
     const lastRead = localStorage.getItem(`rpb-lastread-${activeRoom.id}`);
@@ -706,6 +705,12 @@ export default function ChatPage() {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
   }
 
+  async function handleTogglePin(id: string, pinned: boolean) {
+    const { error } = await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
+    if (error) { console.error("Pin failed:", error.message); return; }
+    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_pinned: pinned } : m));
+  }
+
   function handleOpenProfile(uname: string) {
     const user = allUsers.find((u) => u.username === uname);
     if (user) setProfileUser(user);
@@ -841,37 +846,14 @@ export default function ChatPage() {
   }
 
   async function handleAdminBanUser(target: string) {
-    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
     await supabase.from("users").update({ is_banned: true }).eq("username", target);
-    if (user?.fingerprint) {
-      await supabase.from("banned_fingerprints").upsert({ fingerprint: user.fingerprint, banned_username: target }, { onConflict: "fingerprint" });
-    }
     kickChannelRef.current?.send({ type: "broadcast", event: "kick", payload: { target } });
     loadAllUsers();
   }
 
   async function handleAdminUnbanUser(target: string) {
-    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
     await supabase.from("users").update({ is_banned: false }).eq("username", target);
-    if (user?.fingerprint) {
-      await supabase.from("banned_fingerprints").delete().eq("fingerprint", user.fingerprint);
-    }
     loadAllUsers();
-  }
-
-  async function handlePurgeMessages(target: string) {
-    if (!activeRoom) return;
-    await supabase.from("messages").delete().eq("room_id", activeRoom.id).eq("username", target);
-    setMessages((prev) => prev.filter((m) => m.username !== target));
-  }
-
-  async function handleBulkDelete() {
-    if (selectedMsgs.size === 0) return;
-    const ids = Array.from(selectedMsgs);
-    await supabase.from("messages").delete().in("id", ids);
-    setMessages((prev) => prev.filter((m) => !selectedMsgs.has(m.id)));
-    setSelectedMsgs(new Set());
-    setSelectMode(false);
   }
 
   function scrollToMessage(msgId: string) {
@@ -915,19 +897,17 @@ export default function ChatPage() {
     setLoginChecking(true);
     setLoginError("");
 
-    const fingerprint = await getBrowserFingerprint();
-
     if (loginIsNew) {
       const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color, fingerprint }),
+        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(res.status === 403 ? "This device has been banned" : res.status === 409 ? "Username just got taken" : data.error || "Signup failed");
+        setLoginError(res.status === 409 ? "Username just got taken" : data.error || "Signup failed");
         setLoginChecking(false);
         return;
       }
@@ -941,12 +921,12 @@ export default function ChatPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "login", username: loginUsername, password, fingerprint }),
+        body: JSON.stringify({ action: "login", username: loginUsername, password }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(res.status === 403 ? data.error || "This account has been banned" : "Wrong password");
+        setLoginError(res.status === 403 ? "This account has been banned" : "Wrong password");
         setLoginChecking(false);
         return;
       }
@@ -996,7 +976,7 @@ export default function ChatPage() {
 
   const activeRoomDisplayEmoji = activeRoom?.type === "dm" ? "💬" : activeRoom?.emoji;
 
-
+  const pinnedMessages = messages.filter((m) => m.is_pinned);
 
   const replyLookup = useCallback((id: string | null | undefined) => {
     if (!id) return null;
@@ -1135,7 +1115,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} onPurgeMessages={handlePurgeMessages} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} />
         )}
       </AnimatePresence>
 
@@ -1259,12 +1239,12 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {activeRoom && isAdmin && (
+            {activeRoom && pinnedMessages.length > 0 && (
               <button
-                onClick={() => { setSelectMode(!selectMode); setSelectedMsgs(new Set()); }}
-                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${selectMode ? "bg-pink/15 text-pink" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
+                onClick={() => setShowPinned(!showPinned)}
+                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${showPinned ? "bg-amber-500/15 text-amber-400" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
               >
-                {selectMode ? "✕ Cancel" : "☑ Select"}
+                📌 {pinnedMessages.length}
               </button>
             )}
             {activeRoom && (
@@ -1401,85 +1381,31 @@ export default function ChatPage() {
                             <div className="flex-1 h-px bg-pink/30" />
                           </div>
                         )}
-                        <div className={`flex items-start ${selectMode ? "gap-0" : ""}`}>
-                          {selectMode && !msg.id.startsWith("temp-") && (
-                            <button
-                              onClick={() => setSelectedMsgs((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(msg.id)) next.delete(msg.id);
-                                else next.add(msg.id);
-                                return next;
-                              })}
-                              className="shrink-0 mt-3 ml-2 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all"
-                              style={{
-                                borderColor: selectedMsgs.has(msg.id) ? "var(--color-accent)" : "var(--color-border)",
-                                backgroundColor: selectedMsgs.has(msg.id) ? "var(--color-accent)" : "transparent",
-                              }}
-                            >
-                              {selectedMsgs.has(msg.id) && <span className="text-white text-[10px] font-bold">✓</span>}
-                            </button>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <MessageComp
-                              message={msg}
-                              isOwn={msg.username === username}
-                              username={username}
-                              isGrouped={isGrouped(i)}
-                              isAdmin={isAdmin}
-                              senderTitle={sender?.title}
-                              replyMessage={replyLookup(msg.reply_to)}
-                              onReply={(m) => setReplyingTo(m)}
-                              onEdit={handleEditMessage}
-                              onPin={handleTogglePin}
-                              onOpenProfile={handleOpenProfile}
-                              onOpenLightbox={(url) => setLightboxUrl(url)}
-                              onScrollToMessage={scrollToMessage}
-                              isMuted={isMuted()}
-                              pollData={pollLookup(msg.content)}
-                              customEmojis={customEmojis}
-                              allUsernames={allUsernames}
-                            />
-                          </div>
-                        </div>
+                        <MessageComp
+                          message={msg}
+                          isOwn={msg.username === username}
+                          username={username}
+                          isGrouped={isGrouped(i)}
+                          isAdmin={isAdmin}
+                          senderTitle={sender?.title}
+                          replyMessage={replyLookup(msg.reply_to)}
+                          onReply={(m) => setReplyingTo(m)}
+                          onEdit={handleEditMessage}
+                          onPin={handleTogglePin}
+                          onOpenProfile={handleOpenProfile}
+                          onOpenLightbox={(url) => setLightboxUrl(url)}
+                          onScrollToMessage={scrollToMessage}
+                          isMuted={isMuted()}
+                          pollData={pollLookup(msg.content)}
+                          customEmojis={customEmojis}
+                          allUsernames={allUsernames}
+                        />
                       </Fragment>
                     );
                   })}
                 </div>
 
                 <TypingIndicator users={typingUsers} />
-
-                <AnimatePresence>
-                  {selectMode && selectedMsgs.size > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 20 }}
-                      className="p-2 border-t border-pink/20 bg-pink/5 flex items-center justify-between px-4"
-                    >
-                      <span className="text-xs text-foreground/70">{selectedMsgs.size} message{selectedMsgs.size !== 1 ? "s" : ""} selected</span>
-                      <div className="flex gap-2">
-                        <motion.button
-                          onClick={() => {
-                            const allIds = messages.filter(m => !m.id.startsWith("temp-")).map(m => m.id);
-                            setSelectedMsgs(new Set(allIds));
-                          }}
-                          whileTap={{ scale: 0.95 }}
-                          className="text-[10px] text-muted hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
-                        >
-                          Select All
-                        </motion.button>
-                        <motion.button
-                          onClick={handleBulkDelete}
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.97 }}
-                          className="text-[11px] font-semibold bg-pink/20 hover:bg-pink/30 text-pink px-4 py-1.5 rounded-lg cursor-pointer transition-colors"
-                        >
-                          Delete {selectedMsgs.size}
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
                 <AnimatePresence>
                   {newMsgCount > 0 && (
