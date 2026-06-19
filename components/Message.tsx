@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll, CustomEmoji } from "@/lib/types";
@@ -60,6 +60,37 @@ function isEmojiOnly(text: string): boolean {
   return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}️‍]+$/u.test(trimmed);
 }
 
+function renderMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const mdRegex = /(```[\s\S]*?```|`[^`\n]+`|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|__[^_]+__|_[^_]+_)/g;
+  const parts = text.split(mdRegex).filter(Boolean);
+  return parts.map((part, j) => {
+    const k = `${keyPrefix}-md${j}`;
+    if (part.startsWith("```") && part.endsWith("```")) {
+      const code = part.slice(3, -3).replace(/^\n/, "");
+      return <pre key={k} className="bg-background/60 border border-border rounded-lg px-3 py-2 text-[12px] font-mono text-foreground/80 overflow-x-auto my-1 whitespace-pre-wrap">{code}</pre>;
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={k} className="bg-background/60 border border-border rounded px-1.5 py-0.5 text-[12px] font-mono text-pink/80">{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith("***") && part.endsWith("***")) {
+      return <strong key={k} className="italic">{part.slice(3, -3)}</strong>;
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={k}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("__") && part.endsWith("__")) {
+      return <strong key={k}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("~~") && part.endsWith("~~")) {
+      return <s key={k} className="text-muted/50">{part.slice(2, -2)}</s>;
+    }
+    if ((part.startsWith("*") && part.endsWith("*")) || (part.startsWith("_") && part.endsWith("_"))) {
+      return <em key={k}>{part.slice(1, -1)}</em>;
+    }
+    return <span key={k}>{part}</span>;
+  });
+}
+
 function renderTextContent(content: string, currentUser: string, allUsernames?: string[], customEmojis?: CustomEmoji[]) {
   const urlPart = "(?:https?:\\/\\/[^\\s<]+[^\\s<.,;:!?\"'\\])}>])";
   const parts = [urlPart];
@@ -98,7 +129,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
         return <img key={i} src={emoji.url} alt={token} title={token} className="inline-block w-6 h-6 object-contain align-text-bottom mx-0.5" />;
       }
     }
-    return token;
+    return <span key={i}>{renderMarkdown(token, String(i))}</span>;
   });
 }
 
@@ -144,10 +175,25 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
+  const [pendingReactions, setPendingReactions] = useState<{emoji: string; add: boolean}[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
-  const grouped = groupReactions(message.reactions || []);
+
+  const effectiveReactions = (() => {
+    let reactions = [...(message.reactions || [])];
+    for (const p of pendingReactions) {
+      if (p.add) {
+        if (!reactions.find(r => r.emoji === p.emoji && r.username === username)) {
+          reactions.push({ id: `pending-${p.emoji}`, message_id: message.id, username, emoji: p.emoji });
+        }
+      } else {
+        reactions = reactions.filter(r => !(r.emoji === p.emoji && r.username === username));
+      }
+    }
+    return reactions;
+  })();
+  const grouped = groupReactions(effectiveReactions);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
   const stickerMatch = message.content.trim().match(/^\[sticker:(.+)\]$/);
@@ -180,11 +226,20 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (pendingReactions.length > 0) setPendingReactions([]);
+  }, [message.reactions]);
+
   async function toggleReaction(emoji: string) {
     if (isMuted) return;
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
-    if (existing) await supabase.from("reactions").delete().eq("id", existing.id);
-    else await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
+    if (existing) {
+      setPendingReactions(prev => [...prev, { emoji, add: false }]);
+      await supabase.from("reactions").delete().eq("id", existing.id);
+    } else {
+      setPendingReactions(prev => [...prev, { emoji, add: true }]);
+      await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
+    }
     setShowReactions(false);
     setShowMenu(false);
   }

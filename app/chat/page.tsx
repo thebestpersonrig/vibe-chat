@@ -65,6 +65,8 @@ export default function ChatPage() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [mutedRooms, setMutedRooms] = useState<string[]>([]);
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
+  const [previewCaption, setPreviewCaption] = useState("");
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -86,10 +88,39 @@ export default function ChatPage() {
   messagesRef.current = messages;
   mutedRoomsRef.current = mutedRooms;
 
-  // Tab title with unread count
+  // Tab title + favicon badge with unread count
   useEffect(() => {
     const total = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
     document.title = total > 0 ? `(${total}) Radiant Power Batch` : "Radiant Power Batch";
+
+    const link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+    if (!link) return;
+    if (total === 0) {
+      link.href = "/favicon.ico";
+      return;
+    }
+    const img = new Image();
+    img.src = "/favicon.ico";
+    img.onload = () => {
+      const size = 32;
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, size, size);
+      const r = 9;
+      ctx.beginPath();
+      ctx.arc(size - r, r, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#EC4899";
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(total > 9 ? "9+" : String(total), size - r, r + 1);
+      link.href = c.toDataURL();
+    };
   }, [unreadCounts]);
 
   // Sound + mute preferences from localStorage
@@ -468,8 +499,8 @@ export default function ChatPage() {
     return false;
   }
 
-  async function sendMessage() {
-    let content = newMessage.trim();
+  async function sendMessage(overrideContent?: string) {
+    let content = overrideContent ?? newMessage.trim();
     if (!content || !activeRoom || isMuted() || spamCooldown) return;
 
     if (content.startsWith("/")) {
@@ -496,9 +527,9 @@ export default function ChatPage() {
     }
 
     if (checkSpam()) return;
-    setNewMessage("");
+    if (!overrideContent) setNewMessage("");
     const replyId = replyingTo?.id || null;
-    setReplyingTo(null);
+    if (!overrideContent) setReplyingTo(null);
 
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [...prev, {
@@ -560,7 +591,7 @@ export default function ChatPage() {
     }
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
@@ -568,11 +599,32 @@ export default function ChatPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    setUploading(true);
-    const url = await uploadImage(file);
-    if (url) await sendMediaMessage(url);
-    setUploading(false);
+    const url = URL.createObjectURL(file);
+    setPreviewFile({ file, url });
+    setPreviewCaption("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handlePreviewSend() {
+    if (!previewFile) return;
+    setUploading(true);
+    const url = await uploadImage(previewFile.file);
+    if (url) {
+      if (previewCaption.trim()) {
+        await sendMessage(previewCaption.trim());
+      }
+      await sendMediaMessage(url);
+    }
+    URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+    setPreviewCaption("");
+    setUploading(false);
+  }
+
+  function handlePreviewCancel() {
+    if (previewFile) URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+    setPreviewCaption("");
   }
 
   async function loadPolls(roomId: string) {
@@ -617,11 +669,9 @@ export default function ChatPage() {
         const file = item.getAsFile();
         if (!file) return;
         if (file.size > MAX_UPLOAD_MB * 1024 * 1024) { alert(`Image too large — max ${MAX_UPLOAD_MB}MB`); return; }
-        setUploading(true);
-        uploadImage(file).then(url => {
-          if (url) sendMediaMessage(url);
-          setUploading(false);
-        });
+        const url = URL.createObjectURL(file);
+        setPreviewFile({ file, url });
+        setPreviewCaption("");
         return;
       }
     }
@@ -1069,6 +1119,75 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={handlePreviewCancel}
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-strong rounded-2xl overflow-hidden max-w-lg w-[90vw] glow"
+            >
+              <div className="p-4 border-b border-border flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Send {previewFile.file.type.startsWith("video") ? "Video" : previewFile.file.type.startsWith("audio") ? "Audio" : "Image"}</span>
+                <button onClick={handlePreviewCancel} className="text-muted/50 hover:text-foreground transition-colors cursor-pointer text-lg">✕</button>
+              </div>
+              <div className="p-4 flex flex-col items-center gap-4">
+                {previewFile.file.type.startsWith("video") ? (
+                  <video src={previewFile.url} controls className="max-h-64 rounded-xl object-contain w-full" />
+                ) : previewFile.file.type.startsWith("audio") ? (
+                  <div className="flex items-center gap-3 w-full p-4 rounded-xl bg-surface/60">
+                    <span className="text-3xl">🎵</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground truncate">{previewFile.file.name}</p>
+                      <p className="text-[10px] text-muted/50">{(previewFile.file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                ) : (
+                  <img src={previewFile.url} alt="Preview" className="max-h-64 rounded-xl object-contain" />
+                )}
+                <input
+                  type="text"
+                  value={previewCaption}
+                  onChange={(e) => setPreviewCaption(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePreviewSend(); }}
+                  placeholder="Add a caption..."
+                  autoFocus
+                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
+                />
+              </div>
+              <div className="p-4 pt-0 flex gap-2 justify-end">
+                <motion.button
+                  onClick={handlePreviewCancel}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-4 py-2 rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  onClick={handlePreviewSend}
+                  disabled={uploading}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-pink hover:shadow-lg hover:shadow-accent/25 transition-all cursor-pointer disabled:opacity-50 btn-glow"
+                >
+                  {uploading ? "Uploading..." : "Send"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
@@ -1378,7 +1497,7 @@ export default function ChatPage() {
                         </motion.button>
                         <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
                         <motion.button
-                          onClick={sendMessage}
+                          onClick={() => sendMessage()}
                           disabled={!newMessage.trim()}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.9 }}
