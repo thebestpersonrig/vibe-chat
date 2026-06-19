@@ -97,7 +97,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
 
   if (allUsernames && allUsernames.length > 0) {
     const sorted = [...allUsernames].sort((a, b) => b.length - a.length);
-    parts.push("(?:" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
+    parts.push("(?:@all|" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
   } else {
     parts.push("@\\w+");
   }
@@ -112,7 +112,8 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
   return tokens.map((token, i) => {
     if (token.startsWith("@")) {
       const mentioned = token.slice(1);
-      const isSelf = mentioned.toLowerCase() === currentUser.toLowerCase();
+      const isAll = mentioned.toLowerCase() === "all";
+      const isSelf = isAll || mentioned.toLowerCase() === currentUser.toLowerCase();
       return (
         <span key={i} className={`font-semibold rounded px-1.5 py-0.5 ${isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30 mention-highlight" : "text-blue hover:underline cursor-default"}`}>
           {token}

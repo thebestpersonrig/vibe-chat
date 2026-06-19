@@ -355,7 +355,7 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, newMsg]);
         const isRoomMuted = mutedRoomsRef.current.includes(activeRoomRef.current?.id || "");
         const mentionRe = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`, "i");
-        const isMention = mentionRe.test(newMsg.content);
+        const isMention = mentionRe.test(newMsg.content) || /@all(?!\w)/i.test(newMsg.content);
         const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
         if (isMention || isReplyToMe) {
           if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
