@@ -936,7 +936,7 @@ export default function ChatPage() {
         <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="glass-strong rounded-2xl p-8 w-full max-w-sm glow-strong gradient-border relative z-10">
           <div className="text-center mb-6">
             <motion.span className="text-4xl inline-block" animate={{ y: [0, -8, 0] }} transition={{ duration: 3, repeat: Infinity }}>⚡</motion.span>
-            <h1 className="text-2xl font-bold gradient-text mt-2">Radiant Power Batch</h1>
+            <h1 className="text-2xl font-bold gradient-text text-glow mt-2">Radiant Power Batch</h1>
             <p className="text-muted text-sm mt-1">{loginStep === "username" ? "Pick a username to start chatting" : loginIsNew ? `Create password for "${loginUsername}"` : `Enter password for "${loginUsername}"`}</p>
           </div>
           {loginStep === "username" ? (
@@ -1081,7 +1081,7 @@ export default function ChatPage() {
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-fade-in-up">
                       <motion.span className="text-6xl mb-5 gentle-float inline-block" >{activeRoomDisplayEmoji}</motion.span>
-                      <h3 className="text-2xl font-bold gradient-text mb-2">
+                      <h3 className="text-2xl font-bold gradient-text text-glow mb-2">
                         {activeRoom.type === "dm" ? `Chat with ${activeRoomDisplayName}` : `Welcome to #${activeRoomDisplayName}`}
                       </h3>
                       <p className="text-muted/50 text-sm">Be the first to send a message!</p>
@@ -1259,7 +1259,7 @@ export default function ChatPage() {
               <div className="flex-1 flex items-center justify-center animate-fade-in-up">
                 <div className="text-center">
                   <motion.span className="text-7xl block mb-5 gentle-float inline-block">⚡</motion.span>
-                  <h2 className="text-3xl font-bold gradient-text mb-3">Welcome!</h2>
+                  <h2 className="text-3xl font-bold gradient-text text-glow mb-3">Welcome!</h2>
                   <p className="text-muted/50 text-sm mb-6">Select a room or create one to start chatting</p>
                   <motion.button
                     onClick={() => setSidebarOpen(true)}

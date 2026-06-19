@@ -20,15 +20,15 @@
 }
 
 :root {
-  --glass-bg: rgba(12, 12, 29, 0.9);
-  --glass-bg-light: rgba(12, 12, 29, 0.75);
+  --glass-bg: rgba(12, 12, 29, 0.85);
+  --glass-bg-light: rgba(12, 12, 29, 0.65);
   --glass-border: rgba(139, 92, 246, 0.12);
   --aurora-1: #8B5CF6;
   --aurora-2: #EC4899;
   --aurora-3: #3B82F6;
   --aurora-4: #06B6D4;
   --aurora-opacity: 0.12;
-  --noise-opacity: 0.015;
+  --noise-opacity: 0.018;
   --scrollbar-start: #8B5CF6;
   --scrollbar-end: #EC4899;
   --gradient-from: #a78bfa;
@@ -53,15 +53,15 @@ html[data-theme="light"] {
   --color-blue: #2563EB;
   --color-cyan: #0891B2;
   --color-emerald: #059669;
-  --glass-bg: rgba(255, 255, 255, 0.88);
-  --glass-bg-light: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(124, 58, 237, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-light: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(124, 58, 237, 0.1);
   --aurora-1: #7C3AED;
   --aurora-2: #DB2777;
   --aurora-3: #2563EB;
   --aurora-4: #0891B2;
-  --aurora-opacity: 0.05;
-  --noise-opacity: 0.008;
+  --aurora-opacity: 0.06;
+  --noise-opacity: 0.01;
   --scrollbar-start: #7C3AED;
   --scrollbar-end: #DB2777;
   --gradient-from: #7C3AED;
@@ -86,8 +86,8 @@ html[data-theme="midnight"] {
   --color-blue: #60a5fa;
   --color-cyan: #22d3ee;
   --color-emerald: #34d399;
-  --glass-bg: rgba(15, 23, 42, 0.92);
-  --glass-bg-light: rgba(15, 23, 42, 0.75);
+  --glass-bg: rgba(15, 23, 42, 0.88);
+  --glass-bg-light: rgba(15, 23, 42, 0.65);
   --glass-border: rgba(59, 130, 246, 0.12);
   --aurora-1: #3b82f6;
   --aurora-2: #e879f9;
@@ -117,8 +117,8 @@ html[data-theme="sunset"] {
   --color-blue: #f97316;
   --color-cyan: #fbbf24;
   --color-emerald: #a3e635;
-  --glass-bg: rgba(26, 14, 8, 0.92);
-  --glass-bg-light: rgba(26, 14, 8, 0.75);
+  --glass-bg: rgba(26, 14, 8, 0.88);
+  --glass-bg-light: rgba(26, 14, 8, 0.65);
   --glass-border: rgba(245, 158, 11, 0.12);
   --aurora-1: #f59e0b;
   --aurora-2: #ef4444;
@@ -149,8 +149,8 @@ html[data-theme="forest"] {
   --color-blue: #34d399;
   --color-cyan: #2dd4bf;
   --color-emerald: #22c55e;
-  --glass-bg: rgba(7, 26, 18, 0.92);
-  --glass-bg-light: rgba(7, 26, 18, 0.75);
+  --glass-bg: rgba(7, 26, 18, 0.88);
+  --glass-bg-light: rgba(7, 26, 18, 0.65);
   --glass-border: rgba(16, 185, 129, 0.12);
   --aurora-1: #10b981;
   --aurora-2: #f472b6;
@@ -180,15 +180,15 @@ html[data-theme="neon"] {
   --color-blue: #00e5ff;
   --color-cyan: #76ff03;
   --color-emerald: #69f0ae;
-  --glass-bg: rgba(20, 0, 36, 0.92);
-  --glass-bg-light: rgba(20, 0, 36, 0.75);
-  --glass-border: rgba(224, 64, 251, 0.15);
+  --glass-bg: rgba(20, 0, 36, 0.88);
+  --glass-bg-light: rgba(20, 0, 36, 0.65);
+  --glass-border: rgba(224, 64, 251, 0.18);
   --aurora-1: #e040fb;
   --aurora-2: #ff1493;
   --aurora-3: #00e5ff;
   --aurora-4: #76ff03;
   --aurora-opacity: 0.18;
-  --noise-opacity: 0.02;
+  --noise-opacity: 0.025;
   --scrollbar-start: #e040fb;
   --scrollbar-end: #00e5ff;
   --gradient-from: #e040fb;
@@ -213,9 +213,9 @@ html[data-theme="rose"] {
   --color-blue: #c084fc;
   --color-cyan: #e879f9;
   --color-emerald: #fb7185;
-  --glass-bg: rgba(26, 10, 16, 0.92);
-  --glass-bg-light: rgba(26, 10, 16, 0.75);
-  --glass-border: rgba(236, 72, 153, 0.12);
+  --glass-bg: rgba(26, 10, 16, 0.88);
+  --glass-bg-light: rgba(26, 10, 16, 0.65);
+  --glass-border: rgba(236, 72, 153, 0.15);
   --aurora-1: #ec4899;
   --aurora-2: #f472b6;
   --aurora-3: #c084fc;
@@ -230,22 +230,25 @@ html[data-theme="rose"] {
 
 /* ===== THEME TRANSITIONS ===== */
 body, .glass, .glass-strong {
-  transition: background-color 0.4s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.5s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
 }
 
-/* ===== SCROLLBAR ===== */
+/* ================================================================
+   SCROLLBAR — glowing, gradient, interactive
+   ================================================================ */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--color-accent) 30%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--color-accent) 35%, transparent) transparent;
 }
-*::-webkit-scrollbar { width: 6px; }
+*::-webkit-scrollbar { width: 5px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, var(--scrollbar-start), var(--scrollbar-end));
-  border-radius: 3px;
+  border-radius: 10px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: linear-gradient(180deg, var(--scrollbar-end), var(--scrollbar-start));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
 ::selection {
@@ -257,43 +260,63 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   cursor: default;
+  overflow: hidden;
 }
 
-input, textarea, [contenteditable="true"] {
-  cursor: text;
-}
-a, button, [role="button"], select, label[for], summary {
-  cursor: pointer;
-}
+input, textarea, [contenteditable="true"] { cursor: text; }
+a, button, [role="button"], select, label[for], summary { cursor: pointer; }
 
-/* ===== GLASS ===== */
+/* ================================================================
+   GLASS — multi-layer frosted glass with inner glow + refraction
+   ================================================================ */
 .glass {
-  background: var(--glass-bg-light);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 50%, rgba(255,255,255,0.01) 100%),
+    var(--glass-bg-light);
+  backdrop-filter: blur(30px) saturate(1.6) brightness(1.05);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6) brightness(1.05);
   border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -1px 0 rgba(0,0,0,0.1),
+    0 1px 3px rgba(0,0,0,0.2);
 }
 
 .glass-strong {
-  background: var(--glass-bg);
-  backdrop-filter: blur(40px) saturate(1.6);
-  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 40%, rgba(255,255,255,0.02) 100%),
+    var(--glass-bg);
+  backdrop-filter: blur(50px) saturate(1.8) brightness(1.08);
+  -webkit-backdrop-filter: blur(50px) saturate(1.8) brightness(1.08);
   border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 0 30px rgba(255,255,255,0.02),
+    0 2px 8px rgba(0,0,0,0.3),
+    0 8px 32px rgba(0,0,0,0.15);
 }
 
 .glass-hover:hover {
-  background: color-mix(in srgb, var(--glass-bg) 85%, var(--color-accent) 15%);
-  border-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 6%, transparent), transparent),
+    color-mix(in srgb, var(--glass-bg) 85%, var(--color-accent) 15%);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 0 20px color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
-/* ===== GRADIENT TEXT ===== */
+/* ================================================================
+   GRADIENT TEXT — animated shimmer with glow
+   ================================================================ */
 .gradient-text {
-  background: linear-gradient(135deg, var(--gradient-from) 0%, var(--gradient-via) 40%, var(--gradient-to) 70%, var(--gradient-end) 100%);
-  background-size: 200% 200%;
-  animation: gradientShift 4s ease-in-out infinite;
+  background: linear-gradient(135deg, var(--gradient-from) 0%, var(--gradient-via) 25%, var(--gradient-to) 50%, var(--gradient-end) 75%, var(--gradient-from) 100%);
+  background-size: 300% 300%;
+  animation: gradientShift 5s ease-in-out infinite;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--color-accent) 30%, transparent));
 }
 
 @keyframes gradientShift {
@@ -301,7 +324,9 @@ a, button, [role="button"], select, label[for], summary {
   50% { background-position: 100% 50%; }
 }
 
-/* ===== GRADIENT BORDER ===== */
+/* ================================================================
+   GRADIENT BORDER — rotating animated border with glow
+   ================================================================ */
 .gradient-border {
   position: relative;
 }
@@ -310,14 +335,27 @@ a, button, [role="button"], select, label[for], summary {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-4));
-  background-size: 300% 300%;
-  animation: borderShift 6s ease-in-out infinite;
+  padding: 1.5px;
+  background: linear-gradient(var(--border-angle, 135deg), var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-4), var(--aurora-1));
+  background-size: 400% 400%;
+  animation: borderRotate 8s linear infinite, borderShift 4s ease-in-out infinite;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
   -webkit-mask-composite: xor;
   pointer-events: none;
+}
+.gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: linear-gradient(var(--border-angle, 135deg), var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-4));
+  background-size: 400% 400%;
+  animation: borderRotate 8s linear infinite, borderShift 4s ease-in-out infinite;
+  filter: blur(16px);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: -1;
 }
 
 @keyframes borderShift {
@@ -325,46 +363,69 @@ a, button, [role="button"], select, label[for], summary {
   50% { background-position: 100% 50%; }
 }
 
-/* ===== GLOW ===== */
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes borderRotate {
+  to { --border-angle: 360deg; }
+}
+
+/* ================================================================
+   GLOW — layered volumetric glows
+   ================================================================ */
 .glow {
   box-shadow:
-    0 0 20px color-mix(in srgb, var(--color-accent) 15%, transparent),
-    0 0 60px color-mix(in srgb, var(--color-accent) 8%, transparent),
-    0 0 120px color-mix(in srgb, var(--color-pink) 5%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 0 15px color-mix(in srgb, var(--color-accent) 15%, transparent),
+    0 0 45px color-mix(in srgb, var(--color-accent) 8%, transparent),
+    0 0 90px color-mix(in srgb, var(--color-pink) 5%, transparent),
+    0 4px 20px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .glow-strong {
   box-shadow:
-    0 0 30px color-mix(in srgb, var(--color-accent) 25%, transparent),
-    0 0 80px color-mix(in srgb, var(--color-accent) 12%, transparent),
-    0 0 160px color-mix(in srgb, var(--color-pink) 8%, transparent);
+    0 0 20px color-mix(in srgb, var(--color-accent) 25%, transparent),
+    0 0 60px color-mix(in srgb, var(--color-accent) 15%, transparent),
+    0 0 120px color-mix(in srgb, var(--color-pink) 8%, transparent),
+    0 0 200px color-mix(in srgb, var(--color-accent) 4%, transparent),
+    0 8px 40px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .glow-accent {
   box-shadow:
-    0 0 15px color-mix(in srgb, var(--color-accent) 40%, transparent),
-    0 0 45px color-mix(in srgb, var(--color-accent) 15%, transparent);
+    0 0 12px color-mix(in srgb, var(--color-accent) 45%, transparent),
+    0 0 40px color-mix(in srgb, var(--color-accent) 20%, transparent),
+    0 0 80px color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
-/* ===== BUTTON EFFECTS ===== */
+/* ================================================================
+   BUTTON EFFECTS — glow, shimmer, ripple, morph
+   ================================================================ */
 .btn-glow {
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .btn-glow::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2), var(--aurora-3));
+  inset: -3px;
+  background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-4));
   border-radius: inherit;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.4s ease;
   z-index: -1;
-  filter: blur(12px);
+  filter: blur(15px);
+  animation: borderShift 4s ease-in-out infinite;
+  background-size: 300% 300%;
 }
 .btn-glow:hover::before { opacity: 1; }
+.btn-glow:hover {
+  transform: translateY(-1px);
+}
 
 .btn-shimmer {
   position: relative;
@@ -374,16 +435,19 @@ a, button, [role="button"], select, label[for], summary {
   content: "";
   position: absolute;
   top: 0; left: -100%;
-  width: 100%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-  animation: shimmer 2.5s ease-in-out infinite;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.05), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+  transform: skewX(-20deg);
 }
 @keyframes shimmer {
   0% { left: -100%; }
-  100% { left: 100%; }
+  100% { left: 200%; }
 }
 
-/* ===== AURORA BACKGROUND ===== */
+/* ================================================================
+   AURORA BACKGROUND — 4-blob living nebula + floating particles
+   ================================================================ */
 .aurora-bg {
   position: fixed;
   inset: 0;
@@ -391,36 +455,48 @@ a, button, [role="button"], select, label[for], summary {
   pointer-events: none;
   z-index: 0;
 }
+
+/* Primary aurora blobs */
 .aurora-bg::before,
 .aurora-bg::after {
   content: "";
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
-  animation: auroraMove 20s ease-in-out infinite;
+  filter: blur(100px);
+  mix-blend-mode: screen;
 }
 .aurora-bg::before {
-  width: 60vw; height: 60vw;
-  top: -20%; left: -15%;
-  background: radial-gradient(circle, var(--aurora-1) 0%, var(--aurora-2) 50%, transparent 70%);
+  width: 65vw; height: 65vw;
+  top: -25%; left: -20%;
+  background: radial-gradient(ellipse at 30% 40%, var(--aurora-1) 0%, var(--aurora-2) 40%, transparent 70%);
   opacity: var(--aurora-opacity);
+  animation: aurora1 25s ease-in-out infinite;
 }
 .aurora-bg::after {
-  width: 50vw; height: 50vw;
-  bottom: -20%; right: -15%;
-  background: radial-gradient(circle, var(--aurora-3) 0%, var(--aurora-4) 50%, transparent 70%);
+  width: 55vw; height: 55vw;
+  bottom: -25%; right: -15%;
+  background: radial-gradient(ellipse at 70% 60%, var(--aurora-3) 0%, var(--aurora-4) 40%, transparent 70%);
   opacity: var(--aurora-opacity);
-  animation-delay: -10s;
-  animation-direction: reverse;
-}
-@keyframes auroraMove {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(5vw, 3vh) scale(1.1); }
-  50% { transform: translate(-3vw, 5vh) scale(0.95); }
-  75% { transform: translate(4vw, -2vh) scale(1.05); }
+  animation: aurora2 22s ease-in-out infinite;
 }
 
-/* ===== NOISE OVERLAY ===== */
+@keyframes aurora1 {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  20% { transform: translate(8vw, 5vh) scale(1.15) rotate(5deg); }
+  40% { transform: translate(-5vw, 10vh) scale(0.9) rotate(-3deg); }
+  60% { transform: translate(12vw, -3vh) scale(1.1) rotate(8deg); }
+  80% { transform: translate(-8vw, 6vh) scale(1.05) rotate(-5deg); }
+}
+@keyframes aurora2 {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  25% { transform: translate(-10vw, -5vh) scale(1.2) rotate(-8deg); }
+  50% { transform: translate(5vw, -12vh) scale(0.85) rotate(5deg); }
+  75% { transform: translate(-7vw, 4vh) scale(1.15) rotate(-3deg); }
+}
+
+/* ================================================================
+   NOISE OVERLAY — film grain texture
+   ================================================================ */
 .noise-overlay {
   position: fixed;
   inset: 0;
@@ -430,9 +506,92 @@ a, button, [role="button"], select, label[for], summary {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px;
+  animation: noiseShift 0.5s steps(2) infinite;
+}
+@keyframes noiseShift {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-3px, -3px); }
 }
 
-/* ===== TYPING ANIMATION ===== */
+/* ================================================================
+   FLOATING PARTICLES — CSS-only ambient particle field
+   ================================================================ */
+.aurora-bg .particles,
+.aurora-bg ~ .particles {
+  display: none;
+}
+
+/* Use box-shadow particle field on the body */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, var(--aurora-1), transparent),
+    radial-gradient(1px 1px at 25% 45%, var(--aurora-2), transparent),
+    radial-gradient(1.5px 1.5px at 40% 15%, var(--aurora-3), transparent),
+    radial-gradient(1px 1px at 55% 70%, var(--aurora-4), transparent),
+    radial-gradient(1.5px 1.5px at 70% 35%, var(--aurora-1), transparent),
+    radial-gradient(1px 1px at 85% 60%, var(--aurora-2), transparent),
+    radial-gradient(1px 1px at 15% 80%, var(--aurora-3), transparent),
+    radial-gradient(1.5px 1.5px at 45% 90%, var(--aurora-4), transparent),
+    radial-gradient(1px 1px at 60% 10%, var(--aurora-1), transparent),
+    radial-gradient(1px 1px at 80% 85%, var(--aurora-2), transparent),
+    radial-gradient(1.5px 1.5px at 30% 55%, var(--aurora-3), transparent),
+    radial-gradient(1px 1px at 90% 25%, var(--aurora-4), transparent),
+    radial-gradient(1px 1px at 5% 50%, var(--aurora-1), transparent),
+    radial-gradient(1.5px 1.5px at 50% 40%, var(--aurora-2), transparent),
+    radial-gradient(1px 1px at 75% 75%, var(--aurora-3), transparent),
+    radial-gradient(1px 1px at 20% 30%, var(--aurora-4), transparent),
+    radial-gradient(1.5px 1.5px at 65% 55%, var(--aurora-1), transparent),
+    radial-gradient(1px 1px at 35% 85%, var(--aurora-2), transparent),
+    radial-gradient(1px 1px at 95% 45%, var(--aurora-3), transparent),
+    radial-gradient(1.5px 1.5px at 8% 65%, var(--aurora-4), transparent);
+  animation: particleDrift 30s linear infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.25;
+  background-image:
+    radial-gradient(2px 2px at 12% 35%, var(--aurora-2), transparent),
+    radial-gradient(2px 2px at 38% 72%, var(--aurora-1), transparent),
+    radial-gradient(1.5px 1.5px at 58% 22%, var(--aurora-4), transparent),
+    radial-gradient(2px 2px at 78% 55%, var(--aurora-3), transparent),
+    radial-gradient(1.5px 1.5px at 92% 18%, var(--aurora-2), transparent),
+    radial-gradient(2px 2px at 22% 88%, var(--aurora-1), transparent),
+    radial-gradient(2px 2px at 48% 48%, var(--aurora-4), transparent),
+    radial-gradient(1.5px 1.5px at 68% 82%, var(--aurora-3), transparent),
+    radial-gradient(2px 2px at 82% 32%, var(--aurora-1), transparent),
+    radial-gradient(1.5px 1.5px at 5% 92%, var(--aurora-2), transparent);
+  animation: particleDrift2 45s linear infinite;
+}
+
+@keyframes particleDrift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(15px, -25px); }
+  50% { transform: translate(-10px, -50px); }
+  75% { transform: translate(20px, -75px); }
+  100% { transform: translate(0, -100px); }
+}
+
+@keyframes particleDrift2 {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(-20px, 30px) rotate(2deg); }
+  66% { transform: translate(15px, -20px) rotate(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* ================================================================
+   TYPING ANIMATION
+   ================================================================ */
 @keyframes pulse-dot {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-6px); opacity: 1; }
@@ -443,144 +602,245 @@ a, button, [role="button"], select, label[for], summary {
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ===== ONLINE PULSE ===== */
+/* ================================================================
+   ONLINE PULSE — with glow ring
+   ================================================================ */
 @keyframes onlinePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-  50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6), 0 0 6px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0), 0 0 10px rgba(16, 185, 129, 0.1); }
 }
 .online-pulse {
-  animation: onlinePulse 2s ease-in-out infinite;
+  animation: onlinePulse 2.5s ease-in-out infinite;
 }
 
-/* ===== FADE IN UP ===== */
+/* ================================================================
+   FADE IN UP
+   ================================================================ */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ===== INPUT GLOW ===== */
+/* ================================================================
+   INPUT GLOW — animated focus border + ambient glow
+   ================================================================ */
+.input-glow {
+  position: relative;
+  transition: all 0.3s ease;
+}
+.input-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-4));
+  background-size: 400% 400%;
+  animation: borderShift 4s ease-in-out infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 1;
+}
+.input-glow:focus-within::before {
+  opacity: 1;
+}
 .input-glow:focus-within {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent), 0 0 20px color-mix(in srgb, var(--color-accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent),
+    0 0 25px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 0 60px color-mix(in srgb, var(--color-accent) 5%, transparent);
 }
 
-/* ===== HOVER LIFT ===== */
+/* ================================================================
+   HOVER LIFT — spring-like lift with shadow
+   ================================================================ */
 .hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
 .hover-lift:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 25px rgba(0,0,0,0.3),
+    0 0 15px color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
-/* ===== ROOM ACTIVE ===== */
+/* ================================================================
+   ROOM ACTIVE — glowing active state with animated border
+   ================================================================ */
 .room-active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 12%, transparent), color-mix(in srgb, var(--color-pink) 6%, transparent));
-  border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-accent) 8%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent) 14%, transparent),
+    color-mix(in srgb, var(--color-pink) 6%, transparent));
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  box-shadow:
+    0 0 25px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 0 60px color-mix(in srgb, var(--color-accent) 5%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 20px color-mix(in srgb, var(--color-accent) 5%, transparent);
 }
 
-/* ===== DIVIDER GLOW ===== */
+/* ================================================================
+   DIVIDER GLOW — animated flowing divider
+   ================================================================ */
 .divider-glow {
   height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 20%, transparent), color-mix(in srgb, var(--color-pink) 15%, transparent), transparent);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-accent) 25%, transparent) 20%,
+    color-mix(in srgb, var(--color-pink) 30%, transparent) 50%,
+    color-mix(in srgb, var(--color-accent) 25%, transparent) 80%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: dividerFlow 6s ease-in-out infinite;
+}
+@keyframes dividerFlow {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
 }
 
-/* ===== AVATAR RING ===== */
+/* ================================================================
+   AVATAR RING — glowing with accent color
+   ================================================================ */
 .avatar-ring {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
 
-/* ===== TEXT GLOW ===== */
+/* ================================================================
+   TEXT GLOW
+   ================================================================ */
 .text-glow {
-  text-shadow: 0 0 20px color-mix(in srgb, var(--color-accent) 50%, transparent);
+  text-shadow:
+    0 0 10px color-mix(in srgb, var(--color-accent) 50%, transparent),
+    0 0 30px color-mix(in srgb, var(--color-accent) 25%, transparent),
+    0 0 60px color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
-/* ===== MESSAGE STYLES ===== */
+/* ================================================================
+   MESSAGE STYLES — depth, hover indicator, own-message glow
+   ================================================================ */
 .msg-hover {
   position: relative;
-  transition: background 0.2s ease;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+  border-radius: 12px;
 }
+
+/* Accent bar on hover */
 .msg-hover::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 2px;
-  border-radius: 1px;
+  top: 6px;
+  bottom: 6px;
+  width: 2.5px;
+  border-radius: 2px;
   background: linear-gradient(180deg, var(--color-accent), var(--color-pink));
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease, box-shadow 0.25s ease;
+}
+.msg-hover:hover {
+  background: color-mix(in srgb, var(--color-accent) 3%, transparent);
 }
 .msg-hover:hover::before {
   opacity: 1;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .msg-own {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 4%, transparent), transparent);
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--color-accent) 5%, transparent),
+    color-mix(in srgb, var(--color-accent) 2%, transparent),
+    transparent);
+}
+.msg-own:hover {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent),
+    color-mix(in srgb, var(--color-accent) 4%, transparent),
+    transparent);
 }
 
-/* ===== MENTION PULSE ===== */
+/* ================================================================
+   MENTION PULSE — highlight with glow
+   ================================================================ */
 @keyframes mentionPulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--color-accent-glow); }
-  50% { box-shadow: 0 0 0 3px transparent; }
+  50% { box-shadow: 0 0 0 4px transparent; }
 }
 .mention-highlight {
   animation: mentionPulse 2s ease-in-out 1;
 }
 
-/* ===== MEDIA HOVER ===== */
+/* ================================================================
+   MEDIA HOVER — scale + ambient glow
+   ================================================================ */
 .media-hover {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, filter 0.35s ease;
 }
 .media-hover:hover {
-  transform: scale(1.02);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 20px color-mix(in srgb, var(--color-accent) 15%, transparent);
+  transform: scale(1.03);
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.5),
+    0 0 30px color-mix(in srgb, var(--color-accent) 15%, transparent);
+  filter: brightness(1.05);
 }
 
-/* ===== REACTION POP ===== */
+/* ================================================================
+   REACTION POP — springy entrance
+   ================================================================ */
 @keyframes reactionPop {
-  0% { transform: scale(0.5); opacity: 0; }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  50% { transform: scale(1.2) rotate(2deg); }
+  70% { transform: scale(0.92) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 .reaction-enter {
-  animation: reactionPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: reactionPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ===== SEND PULSE ===== */
+/* ================================================================
+   SEND PULSE — ripple on send
+   ================================================================ */
 @keyframes sendPulse {
   0% { box-shadow: 0 0 0 0 var(--color-accent-glow); }
-  70% { box-shadow: 0 0 0 8px transparent; }
+  50% { box-shadow: 0 0 0 10px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 .send-pulse:active {
-  animation: sendPulse 0.4s ease-out;
+  animation: sendPulse 0.5s ease-out;
 }
 
-/* ===== MESSAGES FADE TOP ===== */
+/* ================================================================
+   MESSAGES FADE TOP — smoother mask
+   ================================================================ */
 .messages-fade-top {
-  mask-image: linear-gradient(to bottom, transparent, black 40px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 40px);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 50px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 50px);
 }
 
-/* ===== GENTLE FLOAT ===== */
+/* ================================================================
+   GENTLE FLOAT — dreamy floating animation
+   ================================================================ */
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  25% { transform: translateY(-8px) rotate(2deg); }
-  75% { transform: translateY(4px) rotate(-1deg); }
+  25% { transform: translateY(-10px) rotate(3deg); }
+  50% { transform: translateY(-4px) rotate(-1deg); }
+  75% { transform: translateY(5px) rotate(-2deg); }
 }
 .gentle-float {
-  animation: gentleFloat 5s ease-in-out infinite;
+  animation: gentleFloat 6s ease-in-out infinite;
 }
 
-/* ===== OVERKILL UI ===== */
-
-/* Card shine on hover */
+/* ================================================================
+   CARD SHINE — holographic light sweep on hover
+   ================================================================ */
 .card-shine {
   position: relative;
   overflow: hidden;
@@ -589,54 +849,106 @@ a, button, [role="button"], select, label[for], summary {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 45%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 55%, transparent 60%);
-  transform: translateX(-200%);
-  transition: transform 0.8s ease;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255,255,255,0.02) 40%,
+    rgba(255,255,255,0.06) 45%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.06) 55%,
+    rgba(255,255,255,0.02) 60%,
+    transparent 65%
+  );
+  transform: translateX(-200%) rotate(-5deg);
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
 }
 .card-shine:hover::after {
-  transform: translateX(200%);
+  transform: translateX(200%) rotate(-5deg);
 }
 
-/* Sticker pop animation */
+/* ================================================================
+   STICKER POP — bouncy entrance
+   ================================================================ */
 @keyframes stickerPop {
-  0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
-  50% { transform: scale(1.15) rotate(3deg); }
-  70% { transform: scale(0.95) rotate(-1deg); }
+  0% { transform: scale(0.2) rotate(-15deg); opacity: 0; }
+  40% { transform: scale(1.2) rotate(5deg); }
+  60% { transform: scale(0.9) rotate(-2deg); }
+  80% { transform: scale(1.05) rotate(1deg); }
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 .sticker-pop {
-  animation: stickerPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: stickerPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Pulsing badge */
+/* ================================================================
+   PULSING BADGE
+   ================================================================ */
 @keyframes pulseBadge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.2); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 var(--color-accent-glow); }
+  50% { transform: scale(1.15); box-shadow: 0 0 8px var(--color-accent-glow); }
 }
 .pulse-badge {
   animation: pulseBadge 2s ease-in-out infinite;
 }
 
-/* Focus glow ring */
+/* ================================================================
+   FOCUS GLOW RING
+   ================================================================ */
 .focus-glow:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-accent), 0 0 20px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  box-shadow:
+    0 0 0 2px var(--color-background),
+    0 0 0 4px var(--color-accent),
+    0 0 25px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-/* Scroll-to-reply highlight flash */
+/* ================================================================
+   SCROLL-TO-REPLY HIGHLIGHT FLASH
+   ================================================================ */
 @keyframes highlight-flash {
-  0% { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+    box-shadow: inset 0 0 30px color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
 }
 .highlight-flash {
-  animation: highlight-flash 1.5s ease-out;
+  animation: highlight-flash 1.8s ease-out;
+  border-radius: 12px;
 }
 
-/* Muted room indicator */
+/* ================================================================
+   MUTED ROOM INDICATOR
+   ================================================================ */
 .room-muted {
-  opacity: 0.55;
+  opacity: 0.5;
+  filter: grayscale(0.3);
 }
 .room-muted:hover {
   opacity: 0.8;
+  filter: grayscale(0);
+}
+
+/* ================================================================
+   AMBIENT ORB — floating accent light behind glass panels
+   ================================================================ */
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  33% { transform: translate(30px, -20px) scale(1.3); opacity: 0.7; }
+  66% { transform: translate(-20px, 15px) scale(0.8); opacity: 0.4; }
+}
+
+/* ================================================================
+   SIDEBAR DEPTH — layered glass feel
+   ================================================================ */
+@supports (backdrop-filter: blur(1px)) {
+  .glass-strong {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 30%, rgba(255,255,255,0.01) 100%),
+      var(--glass-bg);
+  }
 }

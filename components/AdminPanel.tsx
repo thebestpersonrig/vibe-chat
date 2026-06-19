@@ -115,7 +115,7 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, 
         <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-lg">👑</span>
-            <h2 className="text-sm font-bold gradient-text">Admin Panel</h2>
+            <h2 className="text-sm font-bold gradient-text text-glow">Admin Panel</h2>
           </div>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors cursor-pointer text-lg">✕</button>
         </div>

@@ -140,11 +140,11 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
         {isOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden" />}
       </AnimatePresence>
 
-      <div className={`fixed md:relative z-50 md:z-auto h-full w-72 flex flex-col glass-strong border-r border-border transition-transform duration-300 md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`fixed md:relative z-50 md:z-auto h-full w-72 flex flex-col glass-strong border-r border-border transition-transform duration-300 md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`} style={{ boxShadow: "4px 0 30px rgba(0,0,0,0.3), inset -1px 0 0 rgba(255,255,255,0.03)" }}>
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg">⚡</span>
-            <h1 className="text-base font-bold gradient-text">Radiant Power Batch</h1>
+            <h1 className="text-base font-bold gradient-text text-glow">Radiant Power Batch</h1>
           </div>
           <button onClick={onClose} className="md:hidden text-muted hover:text-foreground cursor-pointer text-lg transition-colors">✕</button>
         </div>
@@ -288,7 +288,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           <AnimatePresence>
             {showCreate && (
               <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={handleCreateRoom} className="overflow-hidden">
-                <div className="bg-surface/80 rounded-xl p-3 mb-3 border border-border glow">
+                <div className="bg-surface/80 rounded-xl p-3 mb-3 border border-border glow card-shine">
                   <div className="input-glow rounded-lg transition-all mb-2">
                     <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Room name..." maxLength={30} autoFocus className="w-full bg-background/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/40 focus:outline-none transition-all" />
                   </div>
@@ -297,7 +297,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                       <button key={emoji} type="button" onClick={() => setSelectedEmoji(emoji)} className={`text-sm p-1.5 rounded-lg cursor-pointer transition-all ${selectedEmoji === emoji ? "bg-accent/20 scale-110 ring-1 ring-accent/40" : "hover:bg-surface-hover"}`}>{emoji}</button>
                     ))}
                   </div>
-                  <button type="submit" disabled={!newRoomName.trim() || creating} className="w-full text-xs bg-gradient-to-r from-accent to-pink hover:opacity-90 disabled:opacity-40 text-white py-2 rounded-lg transition-all cursor-pointer font-medium">{creating ? "Creating..." : "Create Room"}</button>
+                  <button type="submit" disabled={!newRoomName.trim() || creating} className="w-full text-xs bg-gradient-to-r from-accent to-pink hover:opacity-90 disabled:opacity-40 text-white py-2 rounded-lg transition-all cursor-pointer font-medium btn-glow">{creating ? "Creating..." : "Create Room"}</button>
                 </div>
               </motion.form>
             )}
@@ -362,7 +362,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           {isAdmin && (
             <button
               onClick={onOpenAdminPanel}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-all cursor-pointer border border-accent/20"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-all cursor-pointer border border-accent/20 btn-glow"
             >
               <span>👑</span> Admin Panel
             </button>
