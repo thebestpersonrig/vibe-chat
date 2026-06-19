@@ -40,6 +40,7 @@ export interface User {
   muted_until?: string | null;
   status_emoji?: string | null;
   status_text?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
 }
 

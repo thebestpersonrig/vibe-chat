@@ -9,7 +9,21 @@ interface OnlineUsersProps {
   allUsers?: User[];
 }
 
+function timeAgo(date: string): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export default function OnlineUsers({ users, allUsers = [] }: OnlineUsersProps) {
+  const onlineSet = new Set(users.map((u) => u.username));
+  const offlineUsers = allUsers.filter((u) => !onlineSet.has(u.username) && !u.is_banned);
+
   return (
     <div className="w-56 h-full glass-strong flex flex-col">
       <motion.div
@@ -65,7 +79,35 @@ export default function OnlineUsers({ users, allUsers = [] }: OnlineUsersProps) 
             </motion.div>
           ))}
         </AnimatePresence>
-        {users.length === 0 && (
+
+        {offlineUsers.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 pt-3 pb-1 px-1">
+              <span className="text-[10px] font-bold text-muted/40 uppercase tracking-[0.15em]">
+                Offline — {offlineUsers.length}
+              </span>
+            </div>
+            {offlineUsers.map((user, i) => (
+              <motion.div
+                key={user.username}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.03 }}
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl opacity-50 hover:opacity-70 transition-all cursor-default"
+              >
+                <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs text-foreground/50 truncate block">{user.username}</span>
+                  {user.last_seen_at && (
+                    <span className="text-[9px] text-muted/40 truncate block">{timeAgo(user.last_seen_at)}</span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </>
+        )}
+
+        {users.length === 0 && offlineUsers.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

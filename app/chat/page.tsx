@@ -168,11 +168,20 @@ export default function ChatPage() {
         setAvatarColor(parsed.avatarColor);
         setAvatarUrl(parsed.avatarUrl || null);
         setIsAdmin(data.is_admin || false);
+        supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("username", parsed.username).then();
       }
       setLoading(false);
     }
     init();
   }, []);
+
+  useEffect(() => {
+    if (!username) return;
+    const interval = setInterval(() => {
+      supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("username", username).then();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [username]);
 
   useEffect(() => {
     if (!username) return;
@@ -315,7 +324,7 @@ export default function ChatPage() {
   async function loadAllUsers() {
     const { data } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, last_seen_at, created_at")
       .order("username");
     if (data) setAllUsers(data);
   }
@@ -1115,7 +1124,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {profileUser && (
-          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} />
+          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} isOnline={onlineUsers.some((u) => u.username === profileUser.username)} />
         )}
       </AnimatePresence>
 
