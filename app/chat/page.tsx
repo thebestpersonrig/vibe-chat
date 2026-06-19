@@ -743,8 +743,17 @@ export default function ChatPage() {
   async function handleAdminRenameUser(oldUsername: string, newUsername: string): Promise<boolean> {
     const { data: existing } = await supabase.from("users").select("username").eq("username", newUsername).maybeSingle();
     if (existing) return false;
-    const { error } = await supabase.rpc("rename_user", { old_username: oldUsername, new_username: newUsername });
+    const { error } = await supabase.from("users").update({ username: newUsername }).eq("username", oldUsername);
     if (error) { console.error("Rename failed:", error.message); return false; }
+    await Promise.all([
+      supabase.from("messages").update({ username: newUsername }).eq("username", oldUsername),
+      supabase.from("reactions").update({ username: newUsername }).eq("username", oldUsername),
+      supabase.from("room_members").update({ username: newUsername }).eq("username", oldUsername),
+      supabase.from("polls").update({ username: newUsername }).eq("username", oldUsername),
+      supabase.from("poll_votes").update({ username: newUsername }).eq("username", oldUsername),
+      supabase.from("custom_emojis").update({ uploaded_by: newUsername }).eq("uploaded_by", oldUsername),
+      supabase.from("stickers").update({ uploaded_by: newUsername }).eq("uploaded_by", oldUsername),
+    ]);
     kickChannelRef.current?.send({ type: "broadcast", event: "rename", payload: { oldUsername, newUsername } });
     setMessages(prev => prev.map(m => m.username === oldUsername ? { ...m, username: newUsername } : m));
     loadAllUsers();
