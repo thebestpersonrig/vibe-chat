@@ -895,15 +895,17 @@ export default function ChatPage() {
     return polls.find(p => p.id === match[1]) || null;
   }, [polls]);
 
-  const allUsernames = useMemo(() => allUsers.map(u => u.username), [allUsers]);
+  const nonBannedUsers = useMemo(() => allUsers.filter(u => !u.is_banned), [allUsers]);
+
+  const allUsernames = useMemo(() => nonBannedUsers.map(u => u.username), [nonBannedUsers]);
 
   const mentionableUsers = useMemo(() => {
-    if (!activeRoom || activeRoom.type !== "dm") return allUsers;
+    if (!activeRoom || activeRoom.type !== "dm") return nonBannedUsers;
     const names = dmNames[activeRoom.id];
-    if (!names) return allUsers;
+    if (!names) return nonBannedUsers;
     const memberNames = new Set(names.split(", ").concat([username]));
-    return allUsers.filter(u => memberNames.has(u.username));
-  }, [activeRoom, allUsers, dmNames, username]);
+    return nonBannedUsers.filter(u => memberNames.has(u.username));
+  }, [activeRoom, nonBannedUsers, dmNames, username]);
 
   if (loading) {
     return (
