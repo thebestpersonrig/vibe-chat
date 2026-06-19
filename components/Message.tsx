@@ -139,6 +139,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
 
 export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuFlip, setMenuFlip] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -338,7 +339,13 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
       {/* Mobile: three-dot dropdown */}
       <div className="md:hidden relative shrink-0 self-start mt-1" ref={menuRef}>
         <motion.button
-          onClick={() => { setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false); }}
+          onClick={() => {
+            if (!showMenu) {
+              const rect = menuRef.current?.getBoundingClientRect();
+              setMenuFlip(rect ? rect.bottom + 200 > window.innerHeight : false);
+            }
+            setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false);
+          }}
           whileTap={{ scale: 0.9 }}
           className="text-muted/50 hover:text-muted text-sm transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover/50"
         >
@@ -348,11 +355,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         <AnimatePresence>
           {showMenu && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              initial={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              exit={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-1 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden"
+              className={`absolute right-0 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden ${menuFlip ? "bottom-full mb-1" : "top-full mt-1"}`}
             >
               <button onClick={() => setShowReactions(!showReactions)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer">
                 <span className="text-sm">😊</span> React

@@ -50,7 +50,7 @@ export default function MentionInput({
   const detectMention = useCallback((text: string) => {
     const cursorPos = inputRef.current?.selectionStart ?? text.length;
     const textBefore = text.slice(0, cursorPos);
-    const match = textBefore.match(/@(\w*)$/);
+    const match = textBefore.match(/@([\w\s]*)$/);
 
     if (match) {
       setMentionQuery(match[1]);
@@ -65,7 +65,7 @@ export default function MentionInput({
     const cursorPos = inputRef.current?.selectionStart ?? value.length;
     const textBefore = value.slice(0, cursorPos);
     const textAfter = value.slice(cursorPos);
-    const newBefore = textBefore.replace(/@\w*$/, `@${username} `);
+    const newBefore = textBefore.replace(/@[\w\s]*$/, `@${username} `);
     onChange(newBefore + textAfter);
     setShowMentions(false);
 

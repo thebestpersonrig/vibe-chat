@@ -79,6 +79,7 @@ export default function ChatPage() {
   const kickChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesRef = useRef<MessageType[]>([]);
   const mutedRoomsRef = useRef<string[]>([]);
+  const typingTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   activeRoomRef.current = activeRoom;
   soundEnabledRef.current = soundEnabled;
@@ -351,7 +352,12 @@ export default function ChatPage() {
       .on("broadcast", { event: "typing" }, ({ payload: p }) => {
         if (p.username === username) return;
         setTypingUsers((prev) => prev.includes(p.username) ? prev : [...prev, p.username]);
-        setTimeout(() => setTypingUsers((prev) => prev.filter((u) => u !== p.username)), 3000);
+        const existing = typingTimers.current.get(p.username);
+        if (existing) clearTimeout(existing);
+        typingTimers.current.set(p.username, setTimeout(() => {
+          setTypingUsers((prev) => prev.filter((u) => u !== p.username));
+          typingTimers.current.delete(p.username);
+        }, 3000));
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -1328,6 +1334,15 @@ export default function ChatPage() {
                       title="Stickers"
                     >
                       🌟
+                    </motion.button>
+                    <motion.button
+                      onClick={() => { setShowPollCreator(!showPollCreator); setShowGifPicker(false); setShowEmojiPicker(false); setShowStickerPicker(false); }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showPollCreator ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
+                      title="Create poll"
+                    >
+                      📊
                     </motion.button>
                     {showVoiceRecorder ? (
                       <VoiceRecorder onSend={handleVoiceMessage} onCancel={() => setShowVoiceRecorder(false)} />
