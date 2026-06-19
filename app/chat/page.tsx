@@ -67,6 +67,7 @@ export default function ChatPage() {
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
   const [previewCaption, setPreviewCaption] = useState("");
+  const [showNotifBanner, setShowNotifBanner] = useState(false);
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -133,10 +134,10 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Request notification permission on first load
   useEffect(() => {
     if (username && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+      const dismissed = localStorage.getItem("rpb-notif-dismissed");
+      if (!dismissed) setShowNotifBanner(true);
     }
   }, [username]);
 
@@ -1272,6 +1273,40 @@ export default function ChatPage() {
                     {msg.content}
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showNotifBanner && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden border-b border-accent/20 bg-accent/5"
+            >
+              <div className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-lg">🔔</span>
+                <span className="text-xs text-foreground/70 flex-1">Enable notifications so you never miss a message or @mention.</span>
+                <motion.button
+                  onClick={async () => {
+                    const result = await Notification.requestPermission();
+                    setShowNotifBanner(false);
+                    if (result === "denied") localStorage.setItem("rpb-notif-dismissed", "1");
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="text-[11px] font-semibold bg-accent/20 hover:bg-accent/30 text-accent px-3 py-1.5 rounded-lg cursor-pointer transition-colors shrink-0"
+                >
+                  Enable
+                </motion.button>
+                <button
+                  onClick={() => { setShowNotifBanner(false); localStorage.setItem("rpb-notif-dismissed", "1"); }}
+                  className="text-muted/40 hover:text-muted text-xs cursor-pointer shrink-0"
+                >
+                  ✕
+                </button>
               </div>
             </motion.div>
           )}
