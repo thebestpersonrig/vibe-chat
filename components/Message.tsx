@@ -179,6 +179,8 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const menuRef = useRef<HTMLDivElement>(null);
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+  const [swipeX, setSwipeX] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number; swiping: boolean } | null>(null);
 
   const effectiveReactions = (() => {
     let reactions = [...(message.reactions || [])];
@@ -264,14 +266,47 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     if (e.key === "Escape") { setIsEditing(false); setEditText(message.content); }
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    if (!onReply || message.id.startsWith("temp-")) return;
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, swiping: false };
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchStartRef.current) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
+    if (!touchStartRef.current.swiping && dy > 15) { touchStartRef.current = null; setSwipeX(0); return; }
+    if (dx > 10) touchStartRef.current.swiping = true;
+    if (touchStartRef.current.swiping) {
+      setSwipeX(Math.min(dx * 0.5, 80));
+    }
+  }
+
+  function handleTouchEnd() {
+    if (touchStartRef.current?.swiping && swipeX > 50 && onReply) {
+      onReply(message);
+    }
+    touchStartRef.current = null;
+    setSwipeX(0);
+  }
+
   return (
     <motion.div
       id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 12, x: isOwn ? 15 : -15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 350, damping: 30, mass: 0.8 }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      className={`group relative flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      style={{ transform: swipeX > 0 ? `translateX(${swipeX}px)` : undefined, transition: swipeX > 0 ? "none" : "transform 0.2s ease-out" }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {swipeX > 10 && (
+        <div className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center justify-center" style={{ opacity: Math.min(swipeX / 50, 1) }}>
+          <span className="text-accent text-lg" style={{ transform: `scale(${Math.min(swipeX / 50, 1)})` }}>↩️</span>
+        </div>
+      )}
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
