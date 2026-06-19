@@ -83,12 +83,16 @@ export async function POST(request: Request) {
     if (action === "login") {
       const { data: user } = await supabase
         .from("users")
-        .select("username, avatar_color, avatar_url, is_admin, password_hash")
+        .select("username, avatar_color, avatar_url, is_admin, is_banned, password_hash")
         .eq("username", username)
         .single();
 
       if (!user || !user.password_hash) {
         return Response.json({ error: "Invalid credentials" }, { status: 401 });
+      }
+
+      if (user.is_banned) {
+        return Response.json({ error: "This account has been banned" }, { status: 403 });
       }
 
       const valid = await verifyPassword(password, user.password_hash);

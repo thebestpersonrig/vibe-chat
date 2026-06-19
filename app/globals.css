@@ -624,6 +624,15 @@ a, button, [role="button"], select, label[for], summary {
   box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-accent), 0 0 20px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
+/* Scroll-to-reply highlight flash */
+@keyframes highlight-flash {
+  0% { background-color: color-mix(in srgb, var(--color-accent) 20%, transparent); }
+  100% { background-color: transparent; }
+}
+.highlight-flash {
+  animation: highlight-flash 1.5s ease-out;
+}
+
 /* Muted room indicator */
 .room-muted {
   opacity: 0.55;

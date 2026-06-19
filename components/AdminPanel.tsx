@@ -12,6 +12,8 @@ interface AdminPanelProps {
   onUpdate: () => void;
   onDeleteUser: (username: string) => void;
   onRenameUser: (oldUsername: string, newUsername: string) => Promise<boolean>;
+  onBanUser: (username: string) => void;
+  onUnbanUser: (username: string) => void;
 }
 
 const MUTE_DURATIONS = [
@@ -38,7 +40,7 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser, onBanUser, onUnbanUser }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
   const [renameInput, setRenameInput] = useState("");
@@ -134,6 +136,7 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, 
                       <span className="text-sm font-medium truncate">{user.username}</span>
                       {user.is_admin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
                       {user.title && <span className="text-[9px] bg-surface text-muted px-1.5 py-0.5 rounded-full border border-border truncate max-w-[100px]">{user.title}</span>}
+                      {user.is_banned && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-bold">BANNED</span>}
                       {muteStatus.muted && <span className="text-[9px] bg-pink/15 text-pink px-1.5 py-0.5 rounded-full font-medium">🔇 {muteStatus.remaining}</span>}
                     </div>
                     <span className="text-[10px] text-muted/50">{user.created_at ? new Date(user.created_at).toLocaleDateString() : ""}</span>
@@ -224,6 +227,25 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, 
                             <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
                               Danger Zone
                             </label>
+                            <div className="flex gap-1.5 mb-2">
+                              {user.is_banned ? (
+                                <button
+                                  onClick={() => { onUnbanUser(user.username); }}
+                                  disabled={saving}
+                                  className="text-[10px] bg-emerald/20 hover:bg-emerald/30 text-emerald px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                >
+                                  Unban
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { onBanUser(user.username); }}
+                                  disabled={saving}
+                                  className="text-[10px] bg-red-500/15 hover:bg-red-500/25 text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                >
+                                  Ban
+                                </button>
+                              )}
+                            </div>
                             {confirmDeleteUser === user.username ? (
                               <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
                                 <span className="text-[10px] text-red-400">Delete {user.username}?</span>

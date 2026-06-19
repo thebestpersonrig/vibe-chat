@@ -34,6 +34,7 @@ export interface User {
   avatar_color: string;
   avatar_url?: string | null;
   is_admin?: boolean;
+  is_banned?: boolean;
   title?: string | null;
 
   muted_until?: string | null;

@@ -127,7 +127,7 @@ export default function ChatPage() {
       if (stored) {
         const parsed = JSON.parse(stored);
         const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
-        if (!data) {
+        if (!data || data.is_banned) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
           return;
@@ -266,7 +266,7 @@ export default function ChatPage() {
   async function loadAllUsers() {
     const { data } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, title, muted_until, status_emoji, status_text, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, created_at")
       .order("username");
     if (data) setAllUsers(data);
   }
@@ -751,6 +751,25 @@ export default function ChatPage() {
     return true;
   }
 
+  async function handleAdminBanUser(target: string) {
+    await supabase.from("users").update({ is_banned: true }).eq("username", target);
+    kickChannelRef.current?.send({ type: "broadcast", event: "kick", payload: { target } });
+    loadAllUsers();
+  }
+
+  async function handleAdminUnbanUser(target: string) {
+    await supabase.from("users").update({ is_banned: false }).eq("username", target);
+    loadAllUsers();
+  }
+
+  function scrollToMessage(msgId: string) {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("highlight-flash");
+    setTimeout(() => el.classList.remove("highlight-flash"), 1500);
+  }
+
   async function handleLoginStep1(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -813,7 +832,7 @@ export default function ChatPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError("Wrong password");
+        setLoginError(res.status === 403 ? "This account has been banned" : "Wrong password");
         setLoginChecking(false);
         return;
       }
@@ -954,7 +973,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} />
         )}
       </AnimatePresence>
 
@@ -1087,6 +1106,7 @@ export default function ChatPage() {
                           onPin={handleTogglePin}
                           onOpenProfile={handleOpenProfile}
                           onOpenLightbox={(url) => setLightboxUrl(url)}
+                          onScrollToMessage={scrollToMessage}
                           isMuted={isMuted()}
                           pollData={pollLookup(msg.content)}
                           customEmojis={customEmojis}

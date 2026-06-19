@@ -11,6 +11,7 @@ create table if not exists users (
   avatar_url text,
   password_hash text,
   is_admin boolean default false,
+  is_banned boolean default false,
   title text,
 
   muted_until timestamptz,
@@ -79,7 +80,7 @@ alter table room_members enable row level security;
 
 -- Public view: excludes password_hash so the anon client never sees it
 create or replace view users_public as
-  select id, username, avatar_color, avatar_url, is_admin, title,
+  select id, username, avatar_color, avatar_url, is_admin, is_banned, title,
          muted_until, status_emoji, status_text, created_at
   from users;
 

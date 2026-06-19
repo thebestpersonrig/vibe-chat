@@ -22,6 +22,7 @@ interface MessageProps {
   onPin?: (id: string, pinned: boolean) => void;
   onOpenProfile?: (username: string) => void;
   onOpenLightbox?: (url: string) => void;
+  onScrollToMessage?: (id: string) => void;
   isMuted?: boolean;
   pollData?: Poll | null;
   customEmojis?: CustomEmoji[];
@@ -136,7 +137,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -209,6 +210,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
 
   return (
     <motion.div
+      id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
@@ -250,7 +252,10 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         )}
 
         {message.reply_to && replyMessage && (
-          <div className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm">
+          <div
+            onClick={() => onScrollToMessage?.(replyMessage.id)}
+            className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm cursor-pointer hover:bg-accent/5 transition-colors rounded-r-lg"
+          >
             <span className="text-[10px] text-accent/60 font-medium">
               {replyMessage.username}
             </span>
