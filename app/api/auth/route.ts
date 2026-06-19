@@ -60,13 +60,24 @@ export async function POST(request: Request) {
     }
 
     if (action === "signup") {
-      const { avatarColor } = body;
+      const { avatarColor, fingerprint } = body;
       if (!avatarColor) return Response.json({ error: "Missing avatar color" }, { status: 400 });
+
+      if (fingerprint) {
+        const { data: banned } = await supabase
+          .from("banned_fingerprints")
+          .select("id")
+          .eq("fingerprint", fingerprint)
+          .maybeSingle();
+        if (banned) {
+          return Response.json({ error: "This device has been banned" }, { status: 403 });
+        }
+      }
 
       const hashed = await pbkdf2Hash(password);
       const { error: insertErr } = await supabase
         .from("users")
-        .insert({ username, avatar_color: avatarColor, password_hash: hashed });
+        .insert({ username, avatar_color: avatarColor, password_hash: hashed, fingerprint: fingerprint || null });
 
       if (insertErr) {
         if (insertErr.code === "23505") {
@@ -81,6 +92,19 @@ export async function POST(request: Request) {
     }
 
     if (action === "login") {
+      const { fingerprint } = body;
+
+      if (fingerprint) {
+        const { data: banned } = await supabase
+          .from("banned_fingerprints")
+          .select("id")
+          .eq("fingerprint", fingerprint)
+          .maybeSingle();
+        if (banned) {
+          return Response.json({ error: "This device has been banned" }, { status: 403 });
+        }
+      }
+
       const { data: user } = await supabase
         .from("users")
         .select("username, avatar_color, avatar_url, is_admin, is_banned, password_hash")
@@ -104,6 +128,10 @@ export async function POST(request: Request) {
       if (!user.password_hash.startsWith("pbkdf2:")) {
         const upgraded = await pbkdf2Hash(password);
         await supabase.from("users").update({ password_hash: upgraded }).eq("username", username);
+      }
+
+      if (fingerprint) {
+        await supabase.from("users").update({ fingerprint }).eq("username", username);
       }
 
       return Response.json({

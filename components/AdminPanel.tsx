@@ -14,6 +14,7 @@ interface AdminPanelProps {
   onRenameUser: (oldUsername: string, newUsername: string) => Promise<boolean>;
   onBanUser: (username: string) => void;
   onUnbanUser: (username: string) => void;
+  onPurgeMessages: (username: string) => void;
 }
 
 const MUTE_DURATIONS = [
@@ -40,13 +41,14 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser, onBanUser, onUnbanUser }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser, onBanUser, onUnbanUser, onPurgeMessages }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
   const [renameInput, setRenameInput] = useState("");
   const [renameError, setRenameError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<string | null>(null);
 
   function startEditing(user: User) {
     if (editingUser === user.username) {
@@ -246,6 +248,21 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, 
                                 </button>
                               )}
                             </div>
+                            {confirmPurge === user.username ? (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 mb-2">
+                                <span className="text-[10px] text-orange-400">Purge all messages from {user.username}?</span>
+                                <button onClick={() => { onPurgeMessages(user.username); setConfirmPurge(null); }} className="text-[10px] text-orange-400 font-semibold cursor-pointer hover:text-orange-300">Yes</button>
+                                <button onClick={() => setConfirmPurge(null)} className="text-[10px] text-muted cursor-pointer hover:text-foreground">No</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmPurge(user.username)}
+                                disabled={saving}
+                                className="text-[10px] bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50 mb-2"
+                              >
+                                Purge Messages
+                              </button>
+                            )}
                             {confirmDeleteUser === user.username ? (
                               <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
                                 <span className="text-[10px] text-red-400">Delete {user.username}?</span>

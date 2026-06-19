@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase, uploadImage } from "@/lib/supabase";
 import { Room, Message as MessageType, Reaction, UserPresence, User, AVATAR_COLORS, Poll, CustomEmoji, Sticker } from "@/lib/types";
 import { playMessageSound, playMentionSound } from "@/lib/sounds";
+import { getBrowserFingerprint } from "@/lib/fingerprint";
 import Sidebar from "@/components/Sidebar";
 import MessageComp from "@/components/Message";
 import MentionInput from "@/components/MentionInput";
@@ -846,14 +847,28 @@ export default function ChatPage() {
   }
 
   async function handleAdminBanUser(target: string) {
+    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
     await supabase.from("users").update({ is_banned: true }).eq("username", target);
+    if (user?.fingerprint) {
+      await supabase.from("banned_fingerprints").upsert({ fingerprint: user.fingerprint, banned_username: target }, { onConflict: "fingerprint" });
+    }
     kickChannelRef.current?.send({ type: "broadcast", event: "kick", payload: { target } });
     loadAllUsers();
   }
 
   async function handleAdminUnbanUser(target: string) {
+    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
     await supabase.from("users").update({ is_banned: false }).eq("username", target);
+    if (user?.fingerprint) {
+      await supabase.from("banned_fingerprints").delete().eq("fingerprint", user.fingerprint);
+    }
     loadAllUsers();
+  }
+
+  async function handlePurgeMessages(target: string) {
+    if (!activeRoom) return;
+    await supabase.from("messages").delete().eq("room_id", activeRoom.id).eq("username", target);
+    setMessages((prev) => prev.filter((m) => m.username !== target));
   }
 
   function scrollToMessage(msgId: string) {
@@ -897,17 +912,19 @@ export default function ChatPage() {
     setLoginChecking(true);
     setLoginError("");
 
+    const fingerprint = await getBrowserFingerprint();
+
     if (loginIsNew) {
       const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color }),
+        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color, fingerprint }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(res.status === 409 ? "Username just got taken" : data.error || "Signup failed");
+        setLoginError(res.status === 403 ? "This device has been banned" : res.status === 409 ? "Username just got taken" : data.error || "Signup failed");
         setLoginChecking(false);
         return;
       }
@@ -921,12 +938,12 @@ export default function ChatPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "login", username: loginUsername, password }),
+        body: JSON.stringify({ action: "login", username: loginUsername, password, fingerprint }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(res.status === 403 ? "This account has been banned" : "Wrong password");
+        setLoginError(res.status === 403 ? data.error || "This account has been banned" : "Wrong password");
         setLoginChecking(false);
         return;
       }
@@ -1115,7 +1132,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} onPurgeMessages={handlePurgeMessages} />
         )}
       </AnimatePresence>
 
