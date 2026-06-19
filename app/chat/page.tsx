@@ -50,7 +50,6 @@ export default function ChatPage() {
   const [loginIsNew, setLoginIsNew] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [dmNames, setDmNames] = useState<Record<string, string>>({});
-  const [isAnonymous, setIsAnonymous] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageType | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -304,8 +303,8 @@ export default function ChatPage() {
           if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
           if (Notification.permission === "granted" && !isRoomMuted) {
             const title = isReplyToMe && !isMention
-              ? `${newMsg.is_anonymous ? "Someone" : newMsg.username} replied to you`
-              : `${newMsg.is_anonymous ? "Anonymous" : newMsg.username} mentioned you`;
+              ? `${newMsg.username} replied to you`
+              : `${newMsg.username} mentioned you`;
             new Notification(title, { body: newMsg.content, icon: "/favicon.ico" });
           }
         } else {
@@ -484,14 +483,13 @@ export default function ChatPage() {
       avatar_color: avatarColor,
       avatar_url: avatarUrl,
       content,
-      is_anonymous: isAnonymous,
       reply_to: replyId,
       created_at: new Date().toISOString(),
       reactions: [],
     }]);
     if (isNearBottomRef.current) setTimeout(() => scrollToBottom(), 20);
 
-    const insertPayload: Record<string, unknown> = { room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content, is_anonymous: isAnonymous };
+    const insertPayload: Record<string, unknown> = { room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content };
     if (replyId) insertPayload.reply_to = replyId;
 
     const { data, error } = await supabase
@@ -519,7 +517,6 @@ export default function ChatPage() {
       avatar_color: avatarColor,
       avatar_url: avatarUrl,
       content: url,
-      is_anonymous: isAnonymous,
       created_at: new Date().toISOString(),
       reactions: [],
     }]);
@@ -527,7 +524,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase
       .from("messages")
-      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: url, is_anonymous: isAnonymous })
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: url })
       .select()
       .single();
 
@@ -572,7 +569,7 @@ export default function ChatPage() {
     if (!activeRoom) return;
     const { data: poll, error } = await supabase.from("polls").insert({ room_id: activeRoom.id, username, question, options }).select().single();
     if (error || !poll) { console.error("Poll create failed:", error?.message); return; }
-    await supabase.from("messages").insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: `[poll:${poll.id}]`, is_anonymous: false });
+    await supabase.from("messages").insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content: `[poll:${poll.id}]` });
     setShowPollCreator(false);
     setNewMessage("");
   }
@@ -669,7 +666,6 @@ export default function ChatPage() {
     if (index === 0) return false;
     const prev = messages[index - 1];
     const curr = messages[index];
-    if (curr.is_anonymous || prev.is_anonymous) return false;
     if (prev.username !== curr.username) return false;
     return new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime() < 120000;
   }
@@ -745,7 +741,7 @@ export default function ChatPage() {
   }
 
   async function handleAdminRenameUser(oldUsername: string, newUsername: string): Promise<boolean> {
-    const { data: existing } = await supabase.from("users").select("username").eq("username", newUsername).single();
+    const { data: existing } = await supabase.from("users").select("username").eq("username", newUsername).maybeSingle();
     if (existing) return false;
     const { error } = await supabase.rpc("rename_user", { old_username: oldUsername, new_username: newUsername });
     if (error) { console.error("Rename failed:", error.message); return false; }
@@ -1038,7 +1034,7 @@ export default function ChatPage() {
                 </div>
                 {pinnedMessages.map((msg) => (
                   <div key={msg.id} className="text-[11px] text-foreground/70 py-0.5 truncate">
-                    <span className="text-accent/60 font-medium">{msg.is_anonymous ? "Anonymous" : msg.username}:</span>{" "}
+                    <span className="text-accent/60 font-medium">{msg.username}:</span>{" "}
                     {msg.content}
                   </div>
                 ))}
@@ -1132,7 +1128,7 @@ export default function ChatPage() {
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/20">
                           <span className="text-accent text-xs">↩️</span>
                           <div className="flex-1 min-w-0">
-                            <span className="text-[10px] text-accent/70 font-medium">{replyingTo.is_anonymous ? "Anonymous" : replyingTo.username}</span>
+                            <span className="text-[10px] text-accent/70 font-medium">{replyingTo.username}</span>
                             <p className="text-[11px] text-muted/50 truncate">{replyingTo.content}</p>
                           </div>
                           <button onClick={() => setReplyingTo(null)} className="text-muted/40 hover:text-muted text-xs cursor-pointer">✕</button>
@@ -1197,16 +1193,6 @@ export default function ChatPage() {
                     >
                       🌟
                     </motion.button>
-                    <motion.button
-                      onClick={() => setIsAnonymous(!isAnonymous)}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${isAnonymous ? "bg-muted/20 ring-1 ring-muted/40 scale-105" : "hover:bg-surface-hover opacity-50 hover:opacity-100"}`}
-                      title={isAnonymous ? "Anonymous mode ON" : "Send anonymously"}
-                    >
-                      🎭
-                    </motion.button>
-
                     {showVoiceRecorder ? (
                       <VoiceRecorder onSend={handleVoiceMessage} onCancel={() => setShowVoiceRecorder(false)} />
                     ) : (
@@ -1220,7 +1206,7 @@ export default function ChatPage() {
                         >
                           🎤
                         </motion.button>
-                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={isAnonymous ? "Anonymous message..." : activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
+                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
                         <motion.button
                           onClick={sendMessage}
                           disabled={!newMessage.trim()}

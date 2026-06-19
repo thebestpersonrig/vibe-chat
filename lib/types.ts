@@ -14,7 +14,6 @@ export interface Message {
   avatar_color: string;
   avatar_url?: string | null;
   content: string;
-  is_anonymous?: boolean;
   edited_at?: string | null;
   reply_to?: string | null;
   is_pinned?: boolean;

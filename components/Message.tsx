@@ -153,12 +153,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const emojiOnly = !hasMedia && !isPoll && !stickerUrl && isEmojiOnly(message.content);
   const firstUrl = !hasMedia && !isPoll && !stickerUrl && !emojiOnly ? extractFirstUrl(message.content) : null;
   const canDelete = isOwn || isAdmin;
-  const canEdit = isOwn && !message.is_anonymous;
-
-  const isAnon = message.is_anonymous;
-  const displayName = isAnon ? "Anonymous" : message.username;
-  const displayColor = isAnon ? "#6B7280" : message.avatar_color;
-  const displayAvatar = isAnon ? null : message.avatar_url;
+  const canEdit = isOwn;
 
   useEffect(() => {
     if (!showMenu && !showReactions && !confirmDelete) return;
@@ -217,7 +212,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn && !isAnon ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
     >
       {isGrouped ? (
         <div className="w-9 shrink-0" />
@@ -225,26 +220,26 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         <motion.div
           whileHover={{ scale: 1.1 }}
           transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          onClick={() => !isAnon && onOpenProfile?.(message.username)}
-          className={!isAnon ? "cursor-pointer" : ""}
+          onClick={() => onOpenProfile?.(message.username)}
+          className="cursor-pointer"
         >
-          <Avatar username={isAnon ? "?" : displayName} avatarColor={displayColor} avatarUrl={displayAvatar} size="md" className="mt-0.5" />
+          <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="md" className="mt-0.5" />
         </motion.div>
       )}
       <div className="flex-1 min-w-0">
         {!isGrouped && (
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span
-              onClick={() => !isAnon && onOpenProfile?.(message.username)}
-              className={`text-[13px] font-semibold transition-colors ${!isAnon ? "hover:underline cursor-pointer" : "cursor-default"}`}
-              style={{ color: displayColor }}
+              onClick={() => onOpenProfile?.(message.username)}
+              className="text-[13px] font-semibold transition-colors hover:underline cursor-pointer"
+              style={{ color: message.avatar_color }}
             >
-              {displayName}
+              {message.username}
             </span>
             {message.is_pinned && (
               <span className="text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">📌 pinned</span>
             )}
-            {senderTitle && !isAnon && (
+            {senderTitle && (
               <span className="text-[9px] bg-accent/10 text-accent/70 px-1.5 py-0.5 rounded-full border border-accent/15 font-medium">{senderTitle}</span>
             )}
             <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>
@@ -257,7 +252,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         {message.reply_to && replyMessage && (
           <div className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm">
             <span className="text-[10px] text-accent/60 font-medium">
-              {replyMessage.is_anonymous ? "Anonymous" : replyMessage.username}
+              {replyMessage.username}
             </span>
             <p className="text-[11px] text-muted/50 truncate">{replyMessage.content}</p>
           </div>
