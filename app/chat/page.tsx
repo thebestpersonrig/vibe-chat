@@ -127,7 +127,7 @@ export default function ChatPage() {
       const stored = localStorage.getItem("rpb-user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
+        const { data } = await supabase.from("users").select("username, avatar_color, avatar_url, is_admin, is_banned").eq("username", parsed.username).single();
         if (!data || data.is_banned) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
@@ -155,13 +155,30 @@ export default function ChatPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "rooms" }, async (payload) => {
         const room = payload.new as Room;
         if (room.type === "dm") {
-          const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
-          if (!members?.some((m) => m.username === username)) return;
-          const others = members.filter((m) => m.username !== username);
-          if (others.length === 1) setDmNames((prev) => ({ ...prev, [room.id]: others[0].username }));
-          else if (others.length > 1) setDmNames((prev) => ({ ...prev, [room.id]: others.map((o) => o.username).join(", ") }));
+          async function checkMembers(retries: number): Promise<boolean> {
+            const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
+            if (!members || members.length === 0) {
+              if (retries > 0) {
+                await new Promise((r) => setTimeout(r, 500));
+                return checkMembers(retries - 1);
+              }
+              return false;
+            }
+            if (!members.some((m) => m.username === username)) return false;
+            const others = members.filter((m) => m.username !== username);
+            if (others.length === 1) setDmNames((prev) => ({ ...prev, [room.id]: others[0].username }));
+            else if (others.length > 1) setDmNames((prev) => ({ ...prev, [room.id]: others.map((o) => o.username).join(", ") }));
+            return true;
+          }
+          const isMember = await checkMembers(3);
+          if (!isMember) return;
         }
         setRooms((prev) => prev.some((r) => r.id === room.id) ? prev : [...prev, room]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms" }, (payload) => {
+        const updated = payload.new as Room;
+        setRooms((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+        setActiveRoom((prev) => prev?.id === updated.id ? updated : prev);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
         const deletedId = (payload.old as { id: string }).id;
@@ -369,6 +386,8 @@ export default function ChatPage() {
 
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimers.current.forEach((t) => clearTimeout(t));
+      typingTimers.current.clear();
       supabase.removeChannel(channel);
     };
   }, [activeRoom?.id, username]);
