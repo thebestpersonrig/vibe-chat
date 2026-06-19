@@ -69,6 +69,8 @@ export default function ChatPage() {
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
   const [previewCaption, setPreviewCaption] = useState("");
   const [showNotifBanner, setShowNotifBanner] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -871,6 +873,15 @@ export default function ChatPage() {
     setMessages((prev) => prev.filter((m) => m.username !== target));
   }
 
+  async function handleBulkDelete() {
+    if (selectedMsgs.size === 0) return;
+    const ids = Array.from(selectedMsgs);
+    await supabase.from("messages").delete().in("id", ids);
+    setMessages((prev) => prev.filter((m) => !selectedMsgs.has(m.id)));
+    setSelectedMsgs(new Set());
+    setSelectMode(false);
+  }
+
   function scrollToMessage(msgId: string) {
     const el = document.getElementById(`msg-${msgId}`);
     if (!el) return;
@@ -1264,6 +1275,14 @@ export default function ChatPage() {
                 📌 {pinnedMessages.length}
               </button>
             )}
+            {activeRoom && isAdmin && (
+              <button
+                onClick={() => { setSelectMode(!selectMode); setSelectedMsgs(new Set()); }}
+                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${selectMode ? "bg-pink/15 text-pink" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
+              >
+                {selectMode ? "✕ Cancel" : "☑ Select"}
+              </button>
+            )}
             {activeRoom && (
               <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
             )}
@@ -1398,31 +1417,85 @@ export default function ChatPage() {
                             <div className="flex-1 h-px bg-pink/30" />
                           </div>
                         )}
-                        <MessageComp
-                          message={msg}
-                          isOwn={msg.username === username}
-                          username={username}
-                          isGrouped={isGrouped(i)}
-                          isAdmin={isAdmin}
-                          senderTitle={sender?.title}
-                          replyMessage={replyLookup(msg.reply_to)}
-                          onReply={(m) => setReplyingTo(m)}
-                          onEdit={handleEditMessage}
-                          onPin={handleTogglePin}
-                          onOpenProfile={handleOpenProfile}
-                          onOpenLightbox={(url) => setLightboxUrl(url)}
-                          onScrollToMessage={scrollToMessage}
-                          isMuted={isMuted()}
-                          pollData={pollLookup(msg.content)}
-                          customEmojis={customEmojis}
-                          allUsernames={allUsernames}
-                        />
+                        <div className={`flex items-start ${selectMode ? "gap-0" : ""}`}>
+                          {selectMode && !msg.id.startsWith("temp-") && (
+                            <button
+                              onClick={() => setSelectedMsgs((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(msg.id)) next.delete(msg.id);
+                                else next.add(msg.id);
+                                return next;
+                              })}
+                              className="shrink-0 mt-3 ml-2 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all"
+                              style={{
+                                borderColor: selectedMsgs.has(msg.id) ? "var(--color-accent)" : "var(--color-border)",
+                                backgroundColor: selectedMsgs.has(msg.id) ? "var(--color-accent)" : "transparent",
+                              }}
+                            >
+                              {selectedMsgs.has(msg.id) && <span className="text-white text-[10px] font-bold">✓</span>}
+                            </button>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <MessageComp
+                              message={msg}
+                              isOwn={msg.username === username}
+                              username={username}
+                              isGrouped={isGrouped(i)}
+                              isAdmin={isAdmin}
+                              senderTitle={sender?.title}
+                              replyMessage={replyLookup(msg.reply_to)}
+                              onReply={(m) => setReplyingTo(m)}
+                              onEdit={handleEditMessage}
+                              onPin={handleTogglePin}
+                              onOpenProfile={handleOpenProfile}
+                              onOpenLightbox={(url) => setLightboxUrl(url)}
+                              onScrollToMessage={scrollToMessage}
+                              isMuted={isMuted()}
+                              pollData={pollLookup(msg.content)}
+                              customEmojis={customEmojis}
+                              allUsernames={allUsernames}
+                            />
+                          </div>
+                        </div>
                       </Fragment>
                     );
                   })}
                 </div>
 
                 <TypingIndicator users={typingUsers} />
+
+                <AnimatePresence>
+                  {selectMode && selectedMsgs.size > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="p-2 border-t border-pink/20 bg-pink/5 flex items-center justify-between px-4"
+                    >
+                      <span className="text-xs text-foreground/70">{selectedMsgs.size} message{selectedMsgs.size !== 1 ? "s" : ""} selected</span>
+                      <div className="flex gap-2">
+                        <motion.button
+                          onClick={() => {
+                            const allIds = messages.filter(m => !m.id.startsWith("temp-")).map(m => m.id);
+                            setSelectedMsgs(new Set(allIds));
+                          }}
+                          whileTap={{ scale: 0.95 }}
+                          className="text-[10px] text-muted hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
+                        >
+                          Select All
+                        </motion.button>
+                        <motion.button
+                          onClick={handleBulkDelete}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          className="text-[11px] font-semibold bg-pink/20 hover:bg-pink/30 text-pink px-4 py-1.5 rounded-lg cursor-pointer transition-colors"
+                        >
+                          Delete {selectedMsgs.size}
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <AnimatePresence>
                   {newMsgCount > 0 && (
