@@ -57,7 +57,6 @@ export default function ChatPage() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [spamCooldown, setSpamCooldown] = useState(false);
-  const [showPinned, setShowPinned] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
@@ -338,7 +337,6 @@ export default function ChatPage() {
     setMessages([]);
     setTypingUsers([]);
     setReplyingTo(null);
-    setShowPinned(false);
     setShowPollCreator(false);
     setShowVoiceRecorder(false);
     const lastRead = localStorage.getItem(`rpb-lastread-${activeRoom.id}`);
@@ -708,12 +706,6 @@ export default function ChatPage() {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
   }
 
-  async function handleTogglePin(id: string, pinned: boolean) {
-    const { error } = await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
-    if (error) { console.error("Pin failed:", error.message); return; }
-    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_pinned: pinned } : m));
-  }
-
   function handleOpenProfile(uname: string) {
     const user = allUsers.find((u) => u.username === uname);
     if (user) setProfileUser(user);
@@ -1004,7 +996,7 @@ export default function ChatPage() {
 
   const activeRoomDisplayEmoji = activeRoom?.type === "dm" ? "💬" : activeRoom?.emoji;
 
-  const pinnedMessages = messages.filter((m) => m.is_pinned);
+
 
   const replyLookup = useCallback((id: string | null | undefined) => {
     if (!id) return null;
@@ -1267,14 +1259,6 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {activeRoom && pinnedMessages.length > 0 && (
-              <button
-                onClick={() => setShowPinned(!showPinned)}
-                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${showPinned ? "bg-amber-500/15 text-amber-400" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
-              >
-                📌 {pinnedMessages.length}
-              </button>
-            )}
             {activeRoom && isAdmin && (
               <button
                 onClick={() => { setSelectMode(!selectMode); setSelectedMsgs(new Set()); }}
