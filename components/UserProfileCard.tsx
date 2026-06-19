@@ -9,21 +9,9 @@ interface UserProfileCardProps {
   onClose: () => void;
   onStartDm: (username: string) => void;
   currentUser: string;
-  isOnline?: boolean;
 }
 
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
-
-export default function UserProfileCard({ user, onClose, onStartDm, currentUser, isOnline }: UserProfileCardProps) {
+export default function UserProfileCard({ user, onClose, onStartDm, currentUser }: UserProfileCardProps) {
   const joinDate = new Date(user.created_at).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -125,7 +113,7 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser,
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-4 flex justify-center gap-5"
+            className="mt-4 flex justify-center"
           >
             <div className="text-center">
               <motion.span
@@ -136,12 +124,6 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser,
                 📅
               </motion.span>
               <span className="text-xs text-muted">Joined {joinDate}</span>
-            </div>
-            <div className="text-center">
-              <span className="text-lg block">{isOnline ? "🟢" : "🔘"}</span>
-              <span className="text-xs text-muted">
-                {isOnline ? "Online now" : user.last_seen_at ? `Seen ${timeAgo(user.last_seen_at)}` : "Never seen"}
-              </span>
             </div>
           </motion.div>
 

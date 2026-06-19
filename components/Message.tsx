@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll, CustomEmoji } from "@/lib/types";
@@ -60,44 +60,13 @@ function isEmojiOnly(text: string): boolean {
   return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}️‍]+$/u.test(trimmed);
 }
 
-function renderMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
-  const mdRegex = /(```[\s\S]*?```|`[^`\n]+`|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|__[^_]+__|_[^_]+_)/g;
-  const parts = text.split(mdRegex).filter(Boolean);
-  return parts.map((part, j) => {
-    const k = `${keyPrefix}-md${j}`;
-    if (part.startsWith("```") && part.endsWith("```")) {
-      const code = part.slice(3, -3).replace(/^\n/, "");
-      return <pre key={k} className="bg-background/60 border border-border rounded-lg px-3 py-2 text-[12px] font-mono text-foreground/80 overflow-x-auto my-1 whitespace-pre-wrap">{code}</pre>;
-    }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={k} className="bg-background/60 border border-border rounded px-1.5 py-0.5 text-[12px] font-mono text-pink/80">{part.slice(1, -1)}</code>;
-    }
-    if (part.startsWith("***") && part.endsWith("***")) {
-      return <strong key={k} className="italic">{part.slice(3, -3)}</strong>;
-    }
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={k}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("__") && part.endsWith("__")) {
-      return <strong key={k}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("~~") && part.endsWith("~~")) {
-      return <s key={k} className="text-muted/50">{part.slice(2, -2)}</s>;
-    }
-    if ((part.startsWith("*") && part.endsWith("*")) || (part.startsWith("_") && part.endsWith("_"))) {
-      return <em key={k}>{part.slice(1, -1)}</em>;
-    }
-    return <span key={k}>{part}</span>;
-  });
-}
-
 function renderTextContent(content: string, currentUser: string, allUsernames?: string[], customEmojis?: CustomEmoji[]) {
   const urlPart = "(?:https?:\\/\\/[^\\s<]+[^\\s<.,;:!?\"'\\])}>])";
   const parts = [urlPart];
 
   if (allUsernames && allUsernames.length > 0) {
     const sorted = [...allUsernames].sort((a, b) => b.length - a.length);
-    parts.push("(?:@all|" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
+    parts.push("(?:" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
   } else {
     parts.push("@\\w+");
   }
@@ -112,8 +81,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
   return tokens.map((token, i) => {
     if (token.startsWith("@")) {
       const mentioned = token.slice(1);
-      const isAll = mentioned.toLowerCase() === "all";
-      const isSelf = isAll || mentioned.toLowerCase() === currentUser.toLowerCase();
+      const isSelf = mentioned.toLowerCase() === currentUser.toLowerCase();
       return (
         <span key={i} className={`font-semibold rounded px-1.5 py-0.5 ${isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30 mention-highlight" : "text-blue hover:underline cursor-default"}`}>
           {token}
@@ -130,7 +98,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
         return <img key={i} src={emoji.url} alt={token} title={token} className="inline-block w-6 h-6 object-contain align-text-bottom mx-0.5" />;
       }
     }
-    return <span key={i}>{renderMarkdown(token, String(i))}</span>;
+    return token;
   });
 }
 
@@ -171,32 +139,14 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
 
 export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
-  const [menuFlip, setMenuFlip] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
-  const [pendingReactions, setPendingReactions] = useState<{emoji: string; add: boolean}[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
-  const [swipeX, setSwipeX] = useState(0);
-  const touchStartRef = useRef<{ x: number; y: number; swiping: boolean } | null>(null);
-
-  const effectiveReactions = (() => {
-    let reactions = [...(message.reactions || [])];
-    for (const p of pendingReactions) {
-      if (p.add) {
-        if (!reactions.find(r => r.emoji === p.emoji && r.username === username)) {
-          reactions.push({ id: `pending-${p.emoji}`, message_id: message.id, username, emoji: p.emoji });
-        }
-      } else {
-        reactions = reactions.filter(r => !(r.emoji === p.emoji && r.username === username));
-      }
-    }
-    return reactions;
-  })();
-  const grouped = groupReactions(effectiveReactions);
+  const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
   const stickerMatch = message.content.trim().match(/^\[sticker:(.+)\]$/);
@@ -229,20 +179,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     }
   }, [isEditing]);
 
-  useEffect(() => {
-    if (pendingReactions.length > 0) setPendingReactions([]);
-  }, [message.reactions]);
-
   async function toggleReaction(emoji: string) {
     if (isMuted) return;
     const existing = (message.reactions || []).find((r) => r.emoji === emoji && r.username === username);
-    if (existing) {
-      setPendingReactions(prev => [...prev, { emoji, add: false }]);
-      await supabase.from("reactions").delete().eq("id", existing.id);
-    } else {
-      setPendingReactions(prev => [...prev, { emoji, add: true }]);
-      await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
-    }
+    if (existing) await supabase.from("reactions").delete().eq("id", existing.id);
+    else await supabase.from("reactions").insert({ message_id: message.id, username, emoji });
     setShowReactions(false);
     setShowMenu(false);
   }
@@ -267,47 +208,14 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     if (e.key === "Escape") { setIsEditing(false); setEditText(message.content); }
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    if (!onReply || message.id.startsWith("temp-")) return;
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, swiping: false };
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (!touchStartRef.current) return;
-    const dx = e.touches[0].clientX - touchStartRef.current.x;
-    const dy = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
-    if (!touchStartRef.current.swiping && dy > 15) { touchStartRef.current = null; setSwipeX(0); return; }
-    if (dx > 10) touchStartRef.current.swiping = true;
-    if (touchStartRef.current.swiping) {
-      setSwipeX(Math.min(dx * 0.5, 80));
-    }
-  }
-
-  function handleTouchEnd() {
-    if (touchStartRef.current?.swiping && swipeX > 50 && onReply) {
-      onReply(message);
-    }
-    touchStartRef.current = null;
-    setSwipeX(0);
-  }
-
   return (
     <motion.div
       id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 12, x: isOwn ? 15 : -15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 350, damping: 30, mass: 0.8 }}
-      className={`group relative flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
-      style={{ transform: swipeX > 0 ? `translateX(${swipeX}px)` : undefined, transition: swipeX > 0 ? "none" : "transform 0.2s ease-out" }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
     >
-      {swipeX > 10 && (
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center justify-center" style={{ opacity: Math.min(swipeX / 50, 1) }}>
-          <span className="text-accent text-lg" style={{ transform: `scale(${Math.min(swipeX / 50, 1)})` }}>↩️</span>
-        </div>
-      )}
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
@@ -430,13 +338,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
       {/* Mobile: three-dot dropdown */}
       <div className="md:hidden relative shrink-0 self-start mt-1" ref={menuRef}>
         <motion.button
-          onClick={() => {
-            if (!showMenu) {
-              const rect = menuRef.current?.getBoundingClientRect();
-              setMenuFlip(rect ? rect.bottom + 200 > window.innerHeight : false);
-            }
-            setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false);
-          }}
+          onClick={() => { setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false); }}
           whileTap={{ scale: 0.9 }}
           className="text-muted/50 hover:text-muted text-sm transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover/50"
         >
@@ -446,11 +348,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         <AnimatePresence>
           {showMenu && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
+              initial={{ opacity: 0, scale: 0.9, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
+              exit={{ opacity: 0, scale: 0.9, y: -4 }}
               transition={{ duration: 0.15 }}
-              className={`absolute right-0 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden ${menuFlip ? "bottom-full mb-1" : "top-full mt-1"}`}
+              className="absolute right-0 top-full mt-1 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden"
             >
               <button onClick={() => setShowReactions(!showReactions)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer">
                 <span className="text-sm">😊</span> React

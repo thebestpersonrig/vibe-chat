@@ -33,7 +33,6 @@ export default function MentionInput({
 
   const onlineSet = new Set(onlineUsers.map((u) => u.username));
 
-  const showAll = "all".includes(mentionQuery.toLowerCase());
   const filteredUsers = allUsers
     .filter(
       (u) =>
@@ -47,12 +46,11 @@ export default function MentionInput({
       if (!aOnline && bOnline) return 1;
       return a.username.localeCompare(b.username);
     });
-  const allItems = showAll ? ["all", ...filteredUsers.map(u => u.username)] : filteredUsers.map(u => u.username);
 
   const detectMention = useCallback((text: string) => {
     const cursorPos = inputRef.current?.selectionStart ?? text.length;
     const textBefore = text.slice(0, cursorPos);
-    const match = textBefore.match(/@([\w\s]*)$/);
+    const match = textBefore.match(/@(\w*)$/);
 
     if (match) {
       setMentionQuery(match[1]);
@@ -67,7 +65,7 @@ export default function MentionInput({
     const cursorPos = inputRef.current?.selectionStart ?? value.length;
     const textBefore = value.slice(0, cursorPos);
     const textAfter = value.slice(cursorPos);
-    const newBefore = textBefore.replace(/@[\w\s]*$/, `@${username} `);
+    const newBefore = textBefore.replace(/@\w*$/, `@${username} `);
     onChange(newBefore + textAfter);
     setShowMentions(false);
 
@@ -79,16 +77,16 @@ export default function MentionInput({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (showMentions && allItems.length > 0) {
+    if (showMentions && filteredUsers.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % allItems.length);
+        setSelectedIndex((prev) => (prev + 1) % filteredUsers.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + allItems.length) % allItems.length);
+        setSelectedIndex((prev) => (prev - 1 + filteredUsers.length) % filteredUsers.length);
       } else if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
-        insertMention(allItems[selectedIndex]);
+        insertMention(filteredUsers[selectedIndex].username);
         return;
       } else if (e.key === "Escape") {
         setShowMentions(false);
@@ -116,7 +114,7 @@ export default function MentionInput({
   return (
     <div className="relative flex-1">
       <AnimatePresence>
-        {showMentions && allItems.length > 0 && (
+        {showMentions && filteredUsers.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -129,27 +127,7 @@ export default function MentionInput({
               </span>
             </div>
             <div className="max-h-48 overflow-y-auto py-1">
-              {allItems.map((item, i) => {
-                if (item === "all") {
-                  return (
-                    <motion.button
-                      key="all"
-                      onClick={() => insertMention("all")}
-                      whileTap={{ scale: 0.97 }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all cursor-pointer ${
-                        i === selectedIndex
-                          ? "bg-gradient-to-r from-accent/15 to-transparent text-foreground"
-                          : "text-foreground/70 hover:bg-surface-hover/50"
-                      }`}
-                    >
-                      <span className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-sm shrink-0">📢</span>
-                      <span className="text-sm font-semibold flex-1 text-accent">all</span>
-                      <span className="text-[10px] text-muted/40 shrink-0">notify everyone</span>
-                    </motion.button>
-                  );
-                }
-                const user = allUsers.find(u => u.username === item);
-                if (!user) return null;
+              {filteredUsers.map((user, i) => {
                 const isOnline = onlineSet.has(user.username);
                 return (
                   <motion.button

@@ -65,9 +65,6 @@ export default function ChatPage() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [mutedRooms, setMutedRooms] = useState<string[]>([]);
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
-  const [previewCaption, setPreviewCaption] = useState("");
-  const [showNotifBanner, setShowNotifBanner] = useState(false);
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -82,46 +79,16 @@ export default function ChatPage() {
   const kickChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesRef = useRef<MessageType[]>([]);
   const mutedRoomsRef = useRef<string[]>([]);
-  const typingTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   activeRoomRef.current = activeRoom;
   soundEnabledRef.current = soundEnabled;
   messagesRef.current = messages;
   mutedRoomsRef.current = mutedRooms;
 
-  // Tab title + favicon badge with unread count
+  // Tab title with unread count
   useEffect(() => {
     const total = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
     document.title = total > 0 ? `(${total}) Radiant Power Batch` : "Radiant Power Batch";
-
-    const link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
-    if (!link) return;
-    if (total === 0) {
-      link.href = "/favicon.ico";
-      return;
-    }
-    const img = new Image();
-    img.src = "/favicon.ico";
-    img.onload = () => {
-      const size = 32;
-      const c = document.createElement("canvas");
-      c.width = size;
-      c.height = size;
-      const ctx = c.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, size, size);
-      const r = 9;
-      ctx.beginPath();
-      ctx.arc(size - r, r, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#EC4899";
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 12px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(total > 9 ? "9+" : String(total), size - r, r + 1);
-      link.href = c.toDataURL();
-    };
   }, [unreadCounts]);
 
   // Sound + mute preferences from localStorage
@@ -134,10 +101,10 @@ export default function ChatPage() {
     }
   }, []);
 
+  // Request notification permission on first load
   useEffect(() => {
     if (username && "Notification" in window && Notification.permission === "default") {
-      const dismissed = localStorage.getItem("rpb-notif-dismissed");
-      if (!dismissed) setShowNotifBanner(true);
+      Notification.requestPermission();
     }
   }, [username]);
 
@@ -159,7 +126,7 @@ export default function ChatPage() {
       const stored = localStorage.getItem("rpb-user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        const { data } = await supabase.from("users").select("username, avatar_color, avatar_url, is_admin, is_banned").eq("username", parsed.username).single();
+        const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
         if (!data || data.is_banned) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
@@ -169,20 +136,11 @@ export default function ChatPage() {
         setAvatarColor(parsed.avatarColor);
         setAvatarUrl(parsed.avatarUrl || null);
         setIsAdmin(data.is_admin || false);
-        supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("username", parsed.username).then();
       }
       setLoading(false);
     }
     init();
   }, []);
-
-  useEffect(() => {
-    if (!username) return;
-    const interval = setInterval(() => {
-      supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("username", username).then();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [username]);
 
   useEffect(() => {
     if (!username) return;
@@ -196,30 +154,13 @@ export default function ChatPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "rooms" }, async (payload) => {
         const room = payload.new as Room;
         if (room.type === "dm") {
-          async function checkMembers(retries: number): Promise<boolean> {
-            const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
-            if (!members || members.length === 0) {
-              if (retries > 0) {
-                await new Promise((r) => setTimeout(r, 500));
-                return checkMembers(retries - 1);
-              }
-              return false;
-            }
-            if (!members.some((m) => m.username === username)) return false;
-            const others = members.filter((m) => m.username !== username);
-            if (others.length === 1) setDmNames((prev) => ({ ...prev, [room.id]: others[0].username }));
-            else if (others.length > 1) setDmNames((prev) => ({ ...prev, [room.id]: others.map((o) => o.username).join(", ") }));
-            return true;
-          }
-          const isMember = await checkMembers(3);
-          if (!isMember) return;
+          const { data: members } = await supabase.from("room_members").select("username").eq("room_id", room.id);
+          if (!members?.some((m) => m.username === username)) return;
+          const others = members.filter((m) => m.username !== username);
+          if (others.length === 1) setDmNames((prev) => ({ ...prev, [room.id]: others[0].username }));
+          else if (others.length > 1) setDmNames((prev) => ({ ...prev, [room.id]: others.map((o) => o.username).join(", ") }));
         }
         setRooms((prev) => prev.some((r) => r.id === room.id) ? prev : [...prev, room]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms" }, (payload) => {
-        const updated = payload.new as Room;
-        setRooms((prev) => prev.map((r) => r.id === updated.id ? updated : r));
-        setActiveRoom((prev) => prev?.id === updated.id ? updated : prev);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
         const deletedId = (payload.old as { id: string }).id;
@@ -325,7 +266,7 @@ export default function ChatPage() {
   async function loadAllUsers() {
     const { data } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, last_seen_at, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, created_at")
       .order("username");
     if (data) setAllUsers(data);
   }
@@ -356,7 +297,7 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, newMsg]);
         const isRoomMuted = mutedRoomsRef.current.includes(activeRoomRef.current?.id || "");
         const mentionRe = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`, "i");
-        const isMention = mentionRe.test(newMsg.content) || /@all(?!\w)/i.test(newMsg.content);
+        const isMention = mentionRe.test(newMsg.content);
         const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
         if (isMention || isReplyToMe) {
           if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
@@ -410,12 +351,7 @@ export default function ChatPage() {
       .on("broadcast", { event: "typing" }, ({ payload: p }) => {
         if (p.username === username) return;
         setTypingUsers((prev) => prev.includes(p.username) ? prev : [...prev, p.username]);
-        const existing = typingTimers.current.get(p.username);
-        if (existing) clearTimeout(existing);
-        typingTimers.current.set(p.username, setTimeout(() => {
-          setTypingUsers((prev) => prev.filter((u) => u !== p.username));
-          typingTimers.current.delete(p.username);
-        }, 3000));
+        setTimeout(() => setTypingUsers((prev) => prev.filter((u) => u !== p.username)), 3000);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -427,8 +363,6 @@ export default function ChatPage() {
 
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimers.current.forEach((t) => clearTimeout(t));
-      typingTimers.current.clear();
       supabase.removeChannel(channel);
     };
   }, [activeRoom?.id, username]);
@@ -509,8 +443,8 @@ export default function ChatPage() {
     return false;
   }
 
-  async function sendMessage(overrideContent?: string) {
-    let content = overrideContent ?? newMessage.trim();
+  async function sendMessage() {
+    let content = newMessage.trim();
     if (!content || !activeRoom || isMuted() || spamCooldown) return;
 
     if (content.startsWith("/")) {
@@ -537,9 +471,9 @@ export default function ChatPage() {
     }
 
     if (checkSpam()) return;
-    if (!overrideContent) setNewMessage("");
+    setNewMessage("");
     const replyId = replyingTo?.id || null;
-    if (!overrideContent) setReplyingTo(null);
+    setReplyingTo(null);
 
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [...prev, {
@@ -601,7 +535,7 @@ export default function ChatPage() {
     }
   }
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
@@ -609,32 +543,11 @@ export default function ChatPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreviewFile({ file, url });
-    setPreviewCaption("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  async function handlePreviewSend() {
-    if (!previewFile) return;
     setUploading(true);
-    const url = await uploadImage(previewFile.file);
-    if (url) {
-      if (previewCaption.trim()) {
-        await sendMessage(previewCaption.trim());
-      }
-      await sendMediaMessage(url);
-    }
-    URL.revokeObjectURL(previewFile.url);
-    setPreviewFile(null);
-    setPreviewCaption("");
+    const url = await uploadImage(file);
+    if (url) await sendMediaMessage(url);
     setUploading(false);
-  }
-
-  function handlePreviewCancel() {
-    if (previewFile) URL.revokeObjectURL(previewFile.url);
-    setPreviewFile(null);
-    setPreviewCaption("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function loadPolls(roomId: string) {
@@ -679,9 +592,11 @@ export default function ChatPage() {
         const file = item.getAsFile();
         if (!file) return;
         if (file.size > MAX_UPLOAD_MB * 1024 * 1024) { alert(`Image too large — max ${MAX_UPLOAD_MB}MB`); return; }
-        const url = URL.createObjectURL(file);
-        setPreviewFile({ file, url });
-        setPreviewCaption("");
+        setUploading(true);
+        uploadImage(file).then(url => {
+          if (url) sendMediaMessage(url);
+          setUploading(false);
+        });
         return;
       }
     }
@@ -1125,76 +1040,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {profileUser && (
-          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} isOnline={onlineUsers.some((u) => u.username === profileUser.username)} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {previewFile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            onClick={handlePreviewCancel}
-          >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.85, opacity: 0, y: 30 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass-strong rounded-2xl overflow-hidden max-w-lg w-[90vw] glow"
-            >
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">Send {previewFile.file.type.startsWith("video") ? "Video" : previewFile.file.type.startsWith("audio") ? "Audio" : "Image"}</span>
-                <button onClick={handlePreviewCancel} className="text-muted/50 hover:text-foreground transition-colors cursor-pointer text-lg">✕</button>
-              </div>
-              <div className="p-4 flex flex-col items-center gap-4">
-                {previewFile.file.type.startsWith("video") ? (
-                  <video src={previewFile.url} controls className="max-h-64 rounded-xl object-contain w-full" />
-                ) : previewFile.file.type.startsWith("audio") ? (
-                  <div className="flex items-center gap-3 w-full p-4 rounded-xl bg-surface/60">
-                    <span className="text-3xl">🎵</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">{previewFile.file.name}</p>
-                      <p className="text-[10px] text-muted/50">{(previewFile.file.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                  </div>
-                ) : (
-                  <img src={previewFile.url} alt="Preview" className="max-h-64 rounded-xl object-contain" />
-                )}
-                <input
-                  type="text"
-                  value={previewCaption}
-                  onChange={(e) => setPreviewCaption(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handlePreviewSend(); }}
-                  placeholder="Add a caption..."
-                  autoFocus
-                  className="w-full bg-surface/80 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all"
-                />
-              </div>
-              <div className="p-4 pt-0 flex gap-2 justify-end">
-                <motion.button
-                  onClick={handlePreviewCancel}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-4 py-2 rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all cursor-pointer"
-                >
-                  Cancel
-                </motion.button>
-                <motion.button
-                  onClick={handlePreviewSend}
-                  disabled={uploading}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-pink hover:shadow-lg hover:shadow-accent/25 transition-all cursor-pointer disabled:opacity-50 btn-glow"
-                >
-                  {uploading ? "Uploading..." : "Send"}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} />
         )}
       </AnimatePresence>
 
@@ -1273,40 +1119,6 @@ export default function ChatPage() {
                     {msg.content}
                   </div>
                 ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {showNotifBanner && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border-b border-accent/20 bg-accent/5"
-            >
-              <div className="px-4 py-2.5 flex items-center gap-3">
-                <span className="text-lg">🔔</span>
-                <span className="text-xs text-foreground/70 flex-1">Enable notifications so you never miss a message or @mention.</span>
-                <motion.button
-                  onClick={async () => {
-                    const result = await Notification.requestPermission();
-                    setShowNotifBanner(false);
-                    if (result === "denied") localStorage.setItem("rpb-notif-dismissed", "1");
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="text-[11px] font-semibold bg-accent/20 hover:bg-accent/30 text-accent px-3 py-1.5 rounded-lg cursor-pointer transition-colors shrink-0"
-                >
-                  Enable
-                </motion.button>
-                <button
-                  onClick={() => { setShowNotifBanner(false); localStorage.setItem("rpb-notif-dismissed", "1"); }}
-                  className="text-muted/40 hover:text-muted text-xs cursor-pointer shrink-0"
-                >
-                  ✕
-                </button>
               </div>
             </motion.div>
           )}
@@ -1517,15 +1329,6 @@ export default function ChatPage() {
                     >
                       🌟
                     </motion.button>
-                    <motion.button
-                      onClick={() => { setShowPollCreator(!showPollCreator); setShowGifPicker(false); setShowEmojiPicker(false); setShowStickerPicker(false); }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showPollCreator ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
-                      title="Create poll"
-                    >
-                      📊
-                    </motion.button>
                     {showVoiceRecorder ? (
                       <VoiceRecorder onSend={handleVoiceMessage} onCancel={() => setShowVoiceRecorder(false)} />
                     ) : (
@@ -1541,7 +1344,7 @@ export default function ChatPage() {
                         </motion.button>
                         <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
                         <motion.button
-                          onClick={() => sendMessage()}
+                          onClick={sendMessage}
                           disabled={!newMessage.trim()}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.9 }}
