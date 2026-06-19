@@ -46,34 +46,71 @@ export default function ThemePicker({ isOpen, onClose }: ThemePickerProps) {
       {isOpen && (
         <motion.div
           ref={containerRef}
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
+          initial={{ opacity: 0, height: 0, scale: 0.95, rotateX: 5 }}
+          animate={{ opacity: 1, height: "auto", scale: 1, rotateX: 0 }}
+          exit={{ opacity: 0, height: 0, scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25 }}
           className="overflow-hidden"
         >
-          <div className="p-3 rounded-xl bg-surface/60 border border-border space-y-2.5">
+          <div className="p-3 rounded-xl bg-surface/60 border border-border space-y-2.5 card-shine">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-muted/60 uppercase tracking-wider">Theme</span>
-              <button onClick={onClose} className="text-muted/40 hover:text-muted text-[10px] cursor-pointer">✕</button>
+              <motion.span
+                initial={{ x: -10, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="text-[10px] font-bold text-muted/60 uppercase tracking-wider"
+              >
+                🎨 Theme
+              </motion.span>
+              <motion.button
+                onClick={onClose}
+                whileHover={{ rotate: 90, scale: 1.2 }}
+                whileTap={{ scale: 0.8 }}
+                className="text-muted/40 hover:text-muted text-[10px] cursor-pointer"
+              >
+                ✕
+              </motion.button>
             </div>
             <div className="grid grid-cols-4 gap-1.5">
-              {THEMES.map((theme) => (
+              {THEMES.map((theme, i) => (
                 <motion.button
                   key={theme.id}
                   onClick={() => selectTheme(theme.id)}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.92 }}
+                  initial={{ opacity: 0, scale: 0.7, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: i * 0.04, type: "spring", stiffness: 400, damping: 20 }}
+                  whileHover={{
+                    scale: 1.12,
+                    y: -3,
+                    boxShadow: `0 6px 20px ${theme.colors[1]}30`,
+                  }}
+                  whileTap={{ scale: 0.88, rotate: -5 }}
                   className={`flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all cursor-pointer ${
                     current === theme.id
                       ? "ring-2 ring-accent bg-accent/10"
                       : "hover:bg-surface-hover"
                   }`}
                 >
-                  <div className="w-9 h-9 rounded-lg overflow-hidden grid grid-cols-2 grid-rows-2 ring-1 ring-border/50">
-                    {theme.colors.map((color, i) => (
-                      <div key={i} style={{ backgroundColor: color }} />
+                  <motion.div
+                    className="w-9 h-9 rounded-lg overflow-hidden grid grid-cols-2 grid-rows-2 ring-1 ring-border/50"
+                    animate={current === theme.id ? {
+                      boxShadow: [
+                        `0 0 0px ${theme.colors[1]}00`,
+                        `0 0 12px ${theme.colors[1]}50`,
+                        `0 0 0px ${theme.colors[1]}00`,
+                      ],
+                    } : {}}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    {theme.colors.map((color, ci) => (
+                      <motion.div
+                        key={ci}
+                        style={{ backgroundColor: color }}
+                        whileHover={{ scale: 1.2 }}
+                        transition={{ type: "spring", stiffness: 600 }}
+                      />
                     ))}
-                  </div>
+                  </motion.div>
                   <span className="text-[8px] text-muted font-medium leading-none">{theme.name}</span>
                 </motion.button>
               ))}

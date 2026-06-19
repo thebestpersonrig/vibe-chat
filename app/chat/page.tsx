@@ -921,8 +921,24 @@ export default function ChatPage() {
       <div className="h-dvh flex items-center justify-center bg-background">
         <div className="aurora-bg" />
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3">
-          <motion.span className="text-4xl" animate={{ rotate: [0, 360] }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>⚡</motion.span>
-          <span className="text-muted text-sm">Loading...</span>
+          <motion.span
+            className="text-5xl"
+            animate={{
+              rotate: [0, 360],
+              scale: [1, 1.2, 1],
+              filter: ["drop-shadow(0 0 0px rgba(139,92,246,0))", "drop-shadow(0 0 20px rgba(139,92,246,0.5))", "drop-shadow(0 0 0px rgba(139,92,246,0))"],
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          >
+            ⚡
+          </motion.span>
+          <motion.span
+            className="text-muted text-sm"
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Loading...
+          </motion.span>
         </motion.div>
       </div>
     );
@@ -933,11 +949,41 @@ export default function ChatPage() {
       <div className="h-dvh flex items-center justify-center bg-background p-4">
         <div className="aurora-bg" />
         <div className="noise-overlay" />
-        <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="glass-strong rounded-2xl p-8 w-full max-w-sm glow-strong gradient-border relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 40, scale: 0.85, rotateX: 10 }}
+          animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+          transition={{ type: "spring", stiffness: 200, damping: 20, mass: 0.8 }}
+          className="glass-strong rounded-2xl p-8 w-full max-w-sm glow-strong gradient-border relative z-10"
+          style={{ perspective: "1200px" }}
+        >
           <div className="text-center mb-6">
-            <motion.span className="text-4xl inline-block" animate={{ y: [0, -8, 0] }} transition={{ duration: 3, repeat: Infinity }}>⚡</motion.span>
-            <h1 className="text-2xl font-bold gradient-text text-glow mt-2">Radiant Power Batch</h1>
-            <p className="text-muted text-sm mt-1">{loginStep === "username" ? "Pick a username to start chatting" : loginIsNew ? `Create password for "${loginUsername}"` : `Enter password for "${loginUsername}"`}</p>
+            <motion.span
+              className="text-5xl inline-block"
+              animate={{
+                y: [0, -12, 0],
+                rotate: [0, 5, -5, 0],
+                filter: ["drop-shadow(0 0 0px rgba(139,92,246,0))", "drop-shadow(0 0 25px rgba(139,92,246,0.5))", "drop-shadow(0 0 0px rgba(139,92,246,0))"],
+              }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            >
+              ⚡
+            </motion.span>
+            <motion.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+              className="text-2xl font-bold gradient-text text-glow mt-2"
+            >
+              Radiant Power Batch
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.35 }}
+              className="text-muted text-sm mt-1"
+            >
+              {loginStep === "username" ? "Pick a username to start chatting" : loginIsNew ? `Create password for "${loginUsername}"` : `Enter password for "${loginUsername}"`}
+            </motion.p>
           </div>
           {loginStep === "username" ? (
             <form onSubmit={handleLoginStep1} className="space-y-4">
@@ -999,8 +1045,13 @@ export default function ChatPage() {
       </AnimatePresence>
 
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
-        <div className="glass-strong px-4 py-3.5 flex items-center justify-between shrink-0 relative">
-          <div className="absolute bottom-0 left-0 right-0 divider-glow" />
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          className="glass-strong px-4 py-3.5 flex items-center justify-between shrink-0 relative"
+        >
+          <div className="absolute bottom-0 left-0 right-0 glow-line" />
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden text-muted hover:text-foreground transition-colors cursor-pointer relative">
               <span className="text-xl">☰</span>
@@ -1046,7 +1097,7 @@ export default function ChatPage() {
               <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Pinned messages bar */}
         <AnimatePresence>
@@ -1079,15 +1130,53 @@ export default function ChatPage() {
               <>
                 <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-4 messages-fade-top">
                   {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-fade-in-up">
-                      <motion.span className="text-6xl mb-5 gentle-float inline-block" >{activeRoomDisplayEmoji}</motion.span>
-                      <h3 className="text-2xl font-bold gradient-text text-glow mb-2">
+                    <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                      <motion.span
+                        className="text-7xl mb-5 inline-block"
+                        initial={{ scale: 0, rotate: -30 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
+                      >
+                        <motion.span
+                          className="inline-block"
+                          animate={{
+                            y: [0, -15, 0],
+                            rotate: [0, 8, -8, 0],
+                            filter: ["drop-shadow(0 0 0px rgba(139,92,246,0))", "drop-shadow(0 0 30px rgba(139,92,246,0.4))", "drop-shadow(0 0 0px rgba(139,92,246,0))"],
+                          }}
+                          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          {activeRoomDisplayEmoji}
+                        </motion.span>
+                      </motion.span>
+                      <motion.h3
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25, type: "spring", stiffness: 300 }}
+                        className="text-2xl font-bold gradient-text text-glow mb-2"
+                      >
                         {activeRoom.type === "dm" ? `Chat with ${activeRoomDisplayName}` : `Welcome to #${activeRoomDisplayName}`}
-                      </h3>
-                      <p className="text-muted/50 text-sm">Be the first to send a message!</p>
-                      <div className="mt-4 flex gap-1">
+                      </motion.h3>
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                        className="text-muted/50 text-sm"
+                      >
+                        Be the first to send a message!
+                      </motion.p>
+                      <div className="mt-4 flex gap-2">
                         {["💬", "🎉", "👋"].map((e, i) => (
-                          <motion.span key={e} className="text-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 0.4, y: 0 }} transition={{ delay: 0.5 + i * 0.15 }}>{e}</motion.span>
+                          <motion.span
+                            key={e}
+                            className="text-xl"
+                            initial={{ opacity: 0, scale: 0, y: 20 }}
+                            animate={{ opacity: 0.5, scale: 1, y: 0 }}
+                            transition={{ delay: 0.6 + i * 0.12, type: "spring", stiffness: 400, damping: 15 }}
+                            whileHover={{ scale: 1.5, opacity: 1, y: -5, rotate: 15 }}
+                          >
+                            {e}
+                          </motion.span>
                         ))}
                       </div>
                     </div>
@@ -1133,10 +1222,21 @@ export default function ChatPage() {
                 <AnimatePresence>
                   {newMsgCount > 0 && (
                     <motion.button
-                      initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                      initial={{ opacity: 0, y: 20, scale: 0.7 }}
+                      animate={{
+                        opacity: 1,
+                        y: [0, -5, 0],
+                        scale: 1,
+                      }}
+                      exit={{ opacity: 0, y: 20, scale: 0.7 }}
+                      transition={{
+                        y: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+                        opacity: { duration: 0.2 },
+                        scale: { type: "spring", stiffness: 400, damping: 15 },
+                      }}
                       onClick={() => { scrollToBottom(); setNewMsgCount(0); }}
+                      whileHover={{ scale: 1.1, boxShadow: "0 0 30px rgba(139,92,246,0.4)" }}
+                      whileTap={{ scale: 0.9 }}
                       className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-gradient-to-r from-accent to-pink text-white text-xs font-semibold px-5 py-2.5 rounded-full cursor-pointer z-20 glow-accent btn-shimmer overflow-hidden"
                     >
                       {newMsgCount} new message{newMsgCount !== 1 ? "s" : ""} ↓
@@ -1144,8 +1244,13 @@ export default function ChatPage() {
                   )}
                 </AnimatePresence>
 
-                <div className="p-3 shrink-0 glass-strong relative border-t border-border">
-                  <div className="absolute top-0 left-0 right-0 divider-glow" />
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.1 }}
+                  className="p-3 shrink-0 glass-strong relative border-t border-border"
+                >
+                  <div className="absolute top-0 left-0 right-0 glow-line" />
 
                   {/* Reply preview bar */}
                   <AnimatePresence>
@@ -1253,19 +1358,53 @@ export default function ChatPage() {
                     )}
                   </div>
                   )}
-                </div>
+                </motion.div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center animate-fade-in-up">
+              <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                  <motion.span className="text-7xl block mb-5 gentle-float inline-block">⚡</motion.span>
-                  <h2 className="text-3xl font-bold gradient-text text-glow mb-3">Welcome!</h2>
-                  <p className="text-muted/50 text-sm mb-6">Select a room or create one to start chatting</p>
+                  <motion.span
+                    className="text-8xl block mb-5 inline-block"
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 12 }}
+                  >
+                    <motion.span
+                      className="inline-block"
+                      animate={{
+                        y: [0, -20, 0],
+                        rotate: [0, 10, -10, 0],
+                        filter: ["drop-shadow(0 0 0px rgba(139,92,246,0))", "drop-shadow(0 0 40px rgba(139,92,246,0.5))", "drop-shadow(0 0 0px rgba(139,92,246,0))"],
+                      }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      ⚡
+                    </motion.span>
+                  </motion.span>
+                  <motion.h2
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 250, damping: 20 }}
+                    className="text-3xl font-bold gradient-text text-glow mb-3"
+                  >
+                    Welcome!
+                  </motion.h2>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-muted/50 text-sm mb-6"
+                  >
+                    Select a room or create one to start chatting
+                  </motion.p>
                   <motion.button
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
                     onClick={() => setSidebarOpen(true)}
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.08, boxShadow: "0 0 25px rgba(139,92,246,0.2)" }}
                     whileTap={{ scale: 0.95 }}
-                    className="md:hidden text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-xl hover:bg-accent/10 transition-all cursor-pointer"
+                    className="md:hidden text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-xl hover:bg-accent/10 transition-all cursor-pointer btn-glow"
                   >
                     Open Rooms
                   </motion.button>

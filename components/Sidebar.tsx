@@ -141,13 +141,34 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
       </AnimatePresence>
 
       <div className={`fixed md:relative z-50 md:z-auto h-full w-72 flex flex-col glass-strong border-r border-border transition-transform duration-300 md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`} style={{ boxShadow: "4px 0 30px rgba(0,0,0,0.3), inset -1px 0 0 rgba(255,255,255,0.03)" }}>
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          className="p-4 border-b border-border flex items-center justify-between relative"
+        >
+          <div className="absolute bottom-0 left-0 right-0 glow-line" />
           <div className="flex items-center gap-2">
-            <span className="text-lg">⚡</span>
+            <motion.span
+              className="text-lg"
+              animate={{
+                filter: ["drop-shadow(0 0 0px rgba(139,92,246,0))", "drop-shadow(0 0 12px rgba(139,92,246,0.5))", "drop-shadow(0 0 0px rgba(139,92,246,0))"],
+              }}
+              transition={{ duration: 3, repeat: Infinity }}
+            >
+              ⚡
+            </motion.span>
             <h1 className="text-base font-bold gradient-text text-glow">Radiant Power Batch</h1>
           </div>
-          <button onClick={onClose} className="md:hidden text-muted hover:text-foreground cursor-pointer text-lg transition-colors">✕</button>
-        </div>
+          <motion.button
+            onClick={onClose}
+            whileHover={{ scale: 1.15, rotate: 90 }}
+            whileTap={{ scale: 0.85 }}
+            className="md:hidden text-muted hover:text-foreground cursor-pointer text-lg transition-colors"
+          >
+            ✕
+          </motion.button>
+        </motion.div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {/* DMs Section */}
@@ -253,7 +274,7 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                   <span className="text-sm font-medium truncate flex-1">{displayName}</span>
                   {roomMuted && <span className="text-[10px] text-muted/40 shrink-0">🔇</span>}
                   {unread > 0 && !isActive && (
-                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
+                    <motion.span initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 500, damping: 15 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20 pulse-badge">
                       {unread > 99 ? "99+" : unread}
                     </motion.span>
                   )}
@@ -314,11 +335,17 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                   whileTap={{ scale: 0.97 }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : `${roomMuted ? "opacity-50" : ""} text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent`}`}
                 >
-                  <span className={`text-lg transition-transform ${isActive ? "scale-110" : ""}`}>{room.emoji}</span>
+                  <motion.span
+                    className="text-lg inline-block"
+                    animate={isActive ? { scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] } : {}}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    {room.emoji}
+                  </motion.span>
                   <span className="text-sm font-medium truncate flex-1">{room.name}</span>
                   {roomMuted && <span className="text-[10px] text-muted/40 shrink-0">🔇</span>}
                   {unread > 0 && !isActive && (
-                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20">
+                    <motion.span initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 500, damping: 15 }} className="bg-gradient-to-r from-accent to-pink text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-accent/20 pulse-badge">
                       {unread > 99 ? "99+" : unread}
                     </motion.span>
                   )}
@@ -358,7 +385,8 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
           {groupRooms.length === 0 && <p className="text-muted/40 text-xs text-center py-4">No rooms yet — create one!</p>}
         </div>
 
-        <div className="p-3 border-t border-border space-y-2">
+        <div className="p-3 border-t border-border space-y-2 relative">
+          <div className="absolute top-0 left-0 right-0 glow-line" />
           {isAdmin && (
             <button
               onClick={onOpenAdminPanel}

@@ -36,10 +36,11 @@ export default function PollCreator({ onSubmit, onCancel }: PollCreatorProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      className="absolute bottom-full mb-2 left-0 right-0 mx-3 glass-strong rounded-xl border border-border glow p-4 z-30"
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.9 }}
+      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+      className="absolute bottom-full mb-2 left-0 right-0 mx-3 glass-strong rounded-xl border border-border glow p-4 z-30 card-shine"
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-bold gradient-text">📊 Create Poll</span>

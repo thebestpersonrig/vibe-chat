@@ -211,17 +211,18 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   return (
     <motion.div
       id={`msg-${message.id}`}
-      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 12, x: isOwn ? 15 : -15, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 350, damping: 30, mass: 0.8 }}
       className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
     >
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
         <motion.div
-          whileHover={{ scale: 1.1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          whileHover={{ scale: 1.15, rotate: 5 }}
+          whileTap={{ scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 500, damping: 15 }}
           onClick={() => onOpenProfile?.(message.username)}
           className="cursor-pointer"
         >
@@ -239,10 +240,24 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
               {message.username}
             </span>
             {message.is_pinned && (
-              <span className="text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">📌 pinned</span>
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                className="text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium"
+              >
+                📌 pinned
+              </motion.span>
             )}
             {senderTitle && (
-              <span className="text-[9px] bg-accent/10 text-accent/70 px-1.5 py-0.5 rounded-full border border-accent/15 font-medium">{senderTitle}</span>
+              <motion.span
+                initial={{ opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-[9px] bg-accent/10 text-accent/70 px-1.5 py-0.5 rounded-full border border-accent/15 font-medium"
+              >
+                {senderTitle}
+              </motion.span>
             )}
             <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>
               {timeAgo(message.created_at)}
@@ -252,15 +267,18 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         )}
 
         {message.reply_to && replyMessage && (
-          <div
+          <motion.div
+            initial={{ opacity: 0, x: -10, height: 0 }}
+            animate={{ opacity: 1, x: 0, height: "auto" }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={() => onScrollToMessage?.(replyMessage.id)}
-            className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm cursor-pointer hover:bg-accent/5 transition-colors rounded-r-lg"
+            className="mb-1.5 pl-3 border-l-2 border-accent/30 rounded-sm max-w-sm cursor-pointer hover:bg-accent/5 hover:border-accent/60 transition-colors rounded-r-lg"
           >
             <span className="text-[10px] text-accent/60 font-medium">
               {replyMessage.username}
             </span>
             <p className="text-[11px] text-muted/50 truncate">{replyMessage.content}</p>
-          </div>
+          </motion.div>
         )}
         {message.reply_to && !replyMessage && (
           <div className="mb-1.5 pl-3 border-l-2 border-border rounded-sm">

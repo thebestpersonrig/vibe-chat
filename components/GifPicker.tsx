@@ -72,7 +72,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
   }
 
   return (
-    <motion.div ref={containerRef} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="absolute bottom-full mb-2 left-0 w-80 md:w-96 glass-strong rounded-2xl overflow-hidden z-30 glow">
+    <motion.div ref={containerRef} initial={{ opacity: 0, y: 15, scale: 0.9, rotateX: 5 }} animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }} transition={{ type: "spring", stiffness: 400, damping: 25 }} className="absolute bottom-full mb-2 left-0 w-80 md:w-96 glass-strong rounded-2xl overflow-hidden z-30 glow">
       <div className="p-2.5 border-b border-border">
         <div className="input-glow rounded-lg transition-all">
           <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search GIPHY..." autoFocus className="w-full bg-surface/80 border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted/40 focus:outline-none transition-all" />
@@ -81,12 +81,27 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
       <div className="h-64 overflow-y-auto p-2">
         {loading && gifs.length === 0 && (
           <div className="flex items-center justify-center h-full">
-            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="text-xl">🎬</motion.span>
+            <motion.span
+              animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+              transition={{ rotate: { duration: 1, repeat: Infinity, ease: "linear" }, scale: { duration: 0.5, repeat: Infinity } }}
+              className="text-xl"
+            >
+              🎬
+            </motion.span>
           </div>
         )}
         <div className="grid grid-cols-2 gap-1.5">
-          {gifs.map((gif) => (
-            <motion.button key={gif.id} onClick={() => { onSelect(gif.images.fixed_height.url); onClose(); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="rounded-xl overflow-hidden ring-1 ring-border hover:ring-accent/40 transition-all cursor-pointer">
+          {gifs.map((gif, i) => (
+            <motion.button
+              key={gif.id}
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ delay: i * 0.03, type: "spring", stiffness: 400, damping: 25 }}
+              onClick={() => { onSelect(gif.images.fixed_height.url); onClose(); }}
+              whileHover={{ scale: 1.05, y: -2, boxShadow: "0 8px 25px rgba(0,0,0,0.4)" }}
+              whileTap={{ scale: 0.95 }}
+              className="rounded-xl overflow-hidden ring-1 ring-border hover:ring-accent/40 transition-all cursor-pointer"
+            >
               <img src={gif.images.fixed_height_small.url} alt={gif.title} className="w-full h-24 object-cover" loading="lazy" />
             </motion.button>
           ))}

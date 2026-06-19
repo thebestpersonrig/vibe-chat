@@ -23,62 +23,136 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       onClick={onClose}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4"
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+        animate={{ opacity: 1, backdropFilter: "blur(12px)" }}
+        exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+        transition={{ duration: 0.3 }}
+        className="absolute inset-0 bg-black/60"
+      />
+      <motion.div
+        initial={{ scale: 0.3, opacity: 0, y: 60, rotateX: 15 }}
+        animate={{ scale: 1, opacity: 1, y: 0, rotateX: 0 }}
+        exit={{ scale: 0.5, opacity: 0, y: 40, rotateX: 10 }}
+        transition={{ type: "spring", stiffness: 350, damping: 25, mass: 0.8 }}
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-xs glass-strong rounded-2xl glow-strong border border-border overflow-hidden"
+        style={{ perspective: "1000px" }}
       >
-        <div className="h-16 bg-gradient-to-r from-accent/20 to-pink/20 relative">
-          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
+        <motion.div
+          className="h-20 relative overflow-hidden"
+          style={{ background: `linear-gradient(135deg, ${user.avatar_color}30, ${user.avatar_color}10, rgba(236,72,153,0.15))` }}
+        >
+          <motion.div
+            className="absolute inset-0"
+            animate={{
+              background: [
+                `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
+                `linear-gradient(225deg, ${user.avatar_color}20, transparent)`,
+                `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
+              ],
+            }}
+            transition={{ duration: 4, repeat: Infinity }}
+          />
+          <motion.div
+            className="absolute -bottom-6 left-1/2 -translate-x-1/2"
+            initial={{ y: -30, scale: 0 }}
+            animate={{ y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.15 }}
+          >
             <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="lg" />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         <div className="pt-10 pb-5 px-5 text-center">
-          <div className="flex items-center justify-center gap-1.5 flex-wrap mb-1">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+            className="flex items-center justify-center gap-1.5 flex-wrap mb-1"
+          >
             <h3 className="text-base font-bold" style={{ color: user.avatar_color }}>{user.username}</h3>
-            {user.is_admin && <span className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold">ADMIN</span>}
-          </div>
+            {user.is_admin && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, delay: 0.3 }}
+                className="text-[9px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-bold"
+              >
+                ADMIN
+              </motion.span>
+            )}
+          </motion.div>
 
           {user.title && (
-            <span className="text-[11px] bg-accent/10 text-accent/70 px-2 py-0.5 rounded-full border border-accent/15 font-medium">{user.title}</span>
+            <motion.span
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.25 }}
+              className="text-[11px] bg-accent/10 text-accent/70 px-2 py-0.5 rounded-full border border-accent/15 font-medium inline-block"
+            >
+              {user.title}
+            </motion.span>
           )}
           {user.status_emoji && (
-            <p className="text-xs text-muted/60 mt-1">{user.status_emoji} {user.status_text || ""}</p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-xs text-muted/60 mt-1"
+            >
+              {user.status_emoji} {user.status_text || ""}
+            </motion.p>
           )}
 
-          <div className="mt-4 flex justify-center">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-4 flex justify-center"
+          >
             <div className="text-center">
-              <span className="text-lg block">📅</span>
+              <motion.span
+                className="text-lg block"
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, delay: 0.5, repeat: Infinity, repeatDelay: 3 }}
+              >
+                📅
+              </motion.span>
               <span className="text-xs text-muted">Joined {joinDate}</span>
             </div>
-          </div>
+          </motion.div>
 
           {user.username !== currentUser && (
             <motion.button
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, type: "spring", stiffness: 300 }}
               onClick={() => { onStartDm(user.username); onClose(); }}
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ scale: 1.03, boxShadow: "0 0 20px rgba(139,92,246,0.2)" }}
               whileTap={{ scale: 0.97 }}
-              className="w-full mt-4 text-xs bg-accent/15 hover:bg-accent/25 text-accent py-2.5 rounded-xl cursor-pointer transition-colors font-medium border border-accent/20"
+              className="w-full mt-4 text-xs bg-accent/15 hover:bg-accent/25 text-accent py-2.5 rounded-xl cursor-pointer transition-colors font-medium border border-accent/20 btn-glow"
             >
               Send Message
             </motion.button>
           )}
         </div>
 
-        <button
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 400 }}
           onClick={onClose}
+          whileHover={{ scale: 1.15, rotate: 90 }}
+          whileTap={{ scale: 0.85 }}
           className="absolute top-2 right-2 text-white/40 hover:text-white transition-colors cursor-pointer text-sm w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10"
         >
           ✕
-        </button>
+        </motion.button>
       </motion.div>
     </motion.div>
   );
