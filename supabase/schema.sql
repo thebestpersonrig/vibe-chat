@@ -262,10 +262,11 @@ insert into storage.buckets (id, name, public)
 values ('media', 'media', true)
 on conflict (id) do nothing;
 
-create policy "Anyone can upload media"
-on storage.objects for insert
-with check (bucket_id = 'media');
-
-create policy "Anyone can read media"
-on storage.objects for select
-using (bucket_id = 'media');
+do $$ begin
+  if not exists (select 1 from pg_policies where policyname = 'Anyone can upload media' and tablename = 'objects') then
+    create policy "Anyone can upload media" on storage.objects for insert with check (bucket_id = 'media');
+  end if;
+  if not exists (select 1 from pg_policies where policyname = 'Anyone can read media' and tablename = 'objects') then
+    create policy "Anyone can read media" on storage.objects for select using (bucket_id = 'media');
+  end if;
+end $$;
