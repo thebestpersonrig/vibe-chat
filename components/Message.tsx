@@ -172,6 +172,22 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
         <span className="text-muted/40 group-hover:text-accent transition-colors">⬇</span>
       </a>
     );
+  if (media.type === "spotify")
+    return (
+      <div className="mt-1.5">
+        {media.text && <p className="text-sm text-foreground/90 break-words leading-relaxed mb-1.5">{media.text}</p>}
+        <div className="rounded-2xl overflow-hidden max-w-xs md:max-w-sm ring-1 ring-border">
+          <iframe
+            src={`https://open.spotify.com/embed/${media.url}?utm_source=generator&theme=0`}
+            width="100%"
+            height={media.url.startsWith("track") || media.url.startsWith("episode") ? 152 : 352}
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            className="border-0 rounded-2xl"
+          />
+        </div>
+      </div>
+    );
   if (media.type === "youtube")
     return (
       <div className="mt-1.5">

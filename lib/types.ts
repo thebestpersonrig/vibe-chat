@@ -114,7 +114,7 @@ export const ROOM_EMOJIS = [
 export const REACTION_EMOJIS = ["❤️", "😂", "🔥", "👍", "😮", "🎉", "💯", "👀"];
 
 export function detectMedia(content: string): {
-  type: "image" | "gif" | "youtube" | "video" | "audio" | "file" | null;
+  type: "image" | "gif" | "youtube" | "video" | "audio" | "file" | "spotify" | null;
   url: string;
   text: string;
 } {
@@ -133,6 +133,11 @@ export function detectMedia(content: string): {
     return { type: "video", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.(pdf|zip|rar|7z|tar|gz|doc|docx|xls|xlsx|ppt|pptx|txt|csv|json|xml)(\?.*)?$/i.test(trimmed))
     return { type: "file", url: trimmed, text: "" };
+  const spotifyMatch = trimmed.match(/https?:\/\/open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/);
+  if (spotifyMatch) {
+    const remaining = trimmed.replace(spotifyMatch[0], "").trim();
+    return { type: "spotify", url: `${spotifyMatch[1]}/${spotifyMatch[2]}`, text: remaining };
+  }
   const ytMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
     const remaining = trimmed.replace(ytMatch[0], "").trim();
