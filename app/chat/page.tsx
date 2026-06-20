@@ -161,16 +161,26 @@ export default function ChatPage() {
     async function init() {
       const stored = localStorage.getItem("rpb-user");
       if (stored) {
-        const parsed = JSON.parse(stored);
-        const { data } = await supabase.from("users").select("*").eq("username", parsed.username).single();
+        let parsed: { username?: string; avatarColor?: string; avatarUrl?: string | null };
+        try { parsed = JSON.parse(stored); } catch { localStorage.removeItem("rpb-user"); setLoading(false); return; }
+        if (!parsed.username) { localStorage.removeItem("rpb-user"); setLoading(false); return; }
+        const { data, error } = await supabase.from("users").select("username, avatar_color, avatar_url, is_admin, is_banned").eq("username", parsed.username).single();
+        if (error && error.code !== "PGRST116") {
+          // Query failed (network, timeout, etc.) — keep session alive from localStorage
+          setUsername(parsed.username);
+          setAvatarColor(parsed.avatarColor);
+          setAvatarUrl(parsed.avatarUrl || null);
+          setLoading(false);
+          return;
+        }
         if (!data || data.is_banned) {
           localStorage.removeItem("rpb-user");
           setLoading(false);
           return;
         }
         setUsername(parsed.username);
-        setAvatarColor(parsed.avatarColor);
-        setAvatarUrl(parsed.avatarUrl || null);
+        setAvatarColor(parsed.avatarColor ?? data.avatar_color);
+        setAvatarUrl(parsed.avatarUrl ?? data.avatar_url ?? null);
         setIsAdmin(data.is_admin || false);
       }
       setLoading(false);
