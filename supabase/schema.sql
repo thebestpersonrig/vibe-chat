@@ -17,6 +17,8 @@ create table if not exists users (
   muted_until timestamptz,
   status_emoji text,
   status_text text,
+  fingerprint text,
+  last_seen_at timestamptz default now(),
   created_at timestamptz default now()
 );
 
@@ -50,7 +52,6 @@ create table if not exists messages (
   is_anonymous boolean default false,
   edited_at timestamptz,
   reply_to uuid references messages(id) on delete set null,
-  is_pinned boolean default false,
   created_at timestamptz default now()
 );
 
@@ -81,8 +82,21 @@ alter table room_members enable row level security;
 -- Public view: excludes password_hash so the anon client never sees it
 create or replace view users_public as
   select id, username, avatar_color, avatar_url, is_admin, is_banned, title,
-         muted_until, status_emoji, status_text, created_at
+         muted_until, status_emoji, status_text, last_seen_at, created_at
   from users;
+
+-- Banned fingerprints table
+create table if not exists banned_fingerprints (
+  id uuid default gen_random_uuid() primary key,
+  fingerprint text not null,
+  banned_username text not null,
+  created_at timestamptz default now()
+);
+
+alter table banned_fingerprints enable row level security;
+create policy "Anyone can read banned_fingerprints" on banned_fingerprints for select using (true);
+create policy "Anyone can insert banned_fingerprints" on banned_fingerprints for insert with check (true);
+create policy "Anyone can delete banned_fingerprints" on banned_fingerprints for delete using (true);
 
 -- Users policies
 -- SELECT: hide password_hash from anon clients by reading through users_public view.

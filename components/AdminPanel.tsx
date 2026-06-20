@@ -14,6 +14,9 @@ interface AdminPanelProps {
   onRenameUser: (oldUsername: string, newUsername: string) => Promise<boolean>;
   onBanUser: (username: string) => void;
   onUnbanUser: (username: string) => void;
+  onPurgeMessages: (username: string) => void;
+  onFingerprintBan: (username: string) => void;
+  onFingerprintUnban: (username: string) => void;
 }
 
 const MUTE_DURATIONS = [
@@ -40,13 +43,14 @@ function getMuteStatus(user: User): { muted: boolean; remaining: string } {
   return { muted: true, remaining: `${Math.floor(hrs / 24)}d left` };
 }
 
-export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser, onBanUser, onUnbanUser }: AdminPanelProps) {
+export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, onRenameUser, onBanUser, onUnbanUser, onPurgeMessages, onFingerprintBan, onFingerprintUnban }: AdminPanelProps) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState("");
   const [renameInput, setRenameInput] = useState("");
   const [renameError, setRenameError] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<string | null>(null);
 
   function startEditing(user: User) {
     if (editingUser === user.username) {
@@ -227,22 +231,57 @@ export default function AdminPanel({ allUsers, onClose, onUpdate, onDeleteUser, 
                             <label className="text-[10px] text-muted/60 uppercase tracking-wider font-bold mb-1 block">
                               Danger Zone
                             </label>
-                            <div className="flex gap-1.5 mb-2">
+                            <div className="flex gap-1.5 flex-wrap mb-2">
                               {user.is_banned ? (
-                                <button
-                                  onClick={() => { onUnbanUser(user.username); }}
-                                  disabled={saving}
-                                  className="text-[10px] bg-emerald/20 hover:bg-emerald/30 text-emerald px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
-                                >
-                                  Unban
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => { onUnbanUser(user.username); }}
+                                    disabled={saving}
+                                    className="text-[10px] bg-emerald/20 hover:bg-emerald/30 text-emerald px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                  >
+                                    Unban
+                                  </button>
+                                  <button
+                                    onClick={() => { onFingerprintUnban(user.username); }}
+                                    disabled={saving}
+                                    className="text-[10px] bg-emerald/20 hover:bg-emerald/30 text-emerald px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                  >
+                                    Unban Device
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => { onBanUser(user.username); }}
+                                    disabled={saving}
+                                    className="text-[10px] bg-red-500/15 hover:bg-red-500/25 text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                  >
+                                    Ban
+                                  </button>
+                                  <button
+                                    onClick={() => { onFingerprintBan(user.username); }}
+                                    disabled={saving}
+                                    className="text-[10px] bg-red-500/15 hover:bg-red-500/25 text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                  >
+                                    Ban Device
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5 flex-wrap mb-2">
+                              {confirmPurge === user.username ? (
+                                <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                                  <span className="text-[10px] text-orange-400">Purge all messages from {user.username}?</span>
+                                  <button onClick={() => { onPurgeMessages(user.username); setConfirmPurge(null); }} className="text-[10px] text-orange-400 font-semibold cursor-pointer hover:text-orange-300">Yes</button>
+                                  <button onClick={() => setConfirmPurge(null)} className="text-[10px] text-muted cursor-pointer hover:text-foreground">No</button>
+                                </div>
                               ) : (
                                 <button
-                                  onClick={() => { onBanUser(user.username); }}
+                                  onClick={() => setConfirmPurge(user.username)}
                                   disabled={saving}
-                                  className="text-[10px] bg-red-500/15 hover:bg-red-500/25 text-red-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
+                                  className="text-[10px] bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-50"
                                 >
-                                  Ban
+                                  Purge Messages
                                 </button>
                               )}
                             </div>

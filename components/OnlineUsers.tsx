@@ -9,6 +9,17 @@ interface OnlineUsersProps {
   allUsers?: User[];
 }
 
+function lastSeenAgo(dateString?: string | null): string {
+  if (!dateString) return "unknown";
+  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export default function OnlineUsers({ users, allUsers = [] }: OnlineUsersProps) {
   return (
     <div className="w-56 h-full glass-strong flex flex-col">
@@ -86,6 +97,34 @@ export default function OnlineUsers({ users, allUsers = [] }: OnlineUsersProps) 
             <p className="text-muted/30 text-xs text-center">Nobody here yet</p>
           </motion.div>
         )}
+
+        {/* Offline users */}
+        {(() => {
+          const onlineNames = new Set(users.map(u => u.username));
+          const offlineUsers = allUsers.filter(u => !onlineNames.has(u.username) && !u.is_banned);
+          if (offlineUsers.length === 0) return null;
+          return (
+            <>
+              <div className="px-2.5 pt-4 pb-1">
+                <span className="text-[10px] font-bold text-muted/40 uppercase tracking-[0.15em]">
+                  Offline — {offlineUsers.length}
+                </span>
+              </div>
+              {offlineUsers.map((user) => (
+                <div
+                  key={user.username}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl opacity-50"
+                >
+                  <Avatar username={user.username} avatarColor={user.avatar_color} avatarUrl={user.avatar_url} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs text-foreground/50 truncate block">{user.username}</span>
+                    <span className="text-[9px] text-muted/40 block">{lastSeenAgo(user.last_seen_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </>
+          );
+        })()}
       </div>
     </div>
   );

@@ -16,7 +16,6 @@ export interface Message {
   content: string;
   edited_at?: string | null;
   reply_to?: string | null;
-  is_pinned?: boolean;
   created_at: string;
   reactions?: Reaction[];
 }
@@ -40,6 +39,7 @@ export interface User {
   muted_until?: string | null;
   status_emoji?: string | null;
   status_text?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
 }
 

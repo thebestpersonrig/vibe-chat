@@ -9,9 +9,21 @@ interface UserProfileCardProps {
   onClose: () => void;
   onStartDm: (username: string) => void;
   currentUser: string;
+  isOnline?: boolean;
 }
 
-export default function UserProfileCard({ user, onClose, onStartDm, currentUser }: UserProfileCardProps) {
+function lastSeenAgo(dateString?: string | null): string {
+  if (!dateString) return "unknown";
+  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+export default function UserProfileCard({ user, onClose, onStartDm, currentUser, isOnline }: UserProfileCardProps) {
   const joinDate = new Date(user.created_at).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -124,6 +136,12 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser 
                 📅
               </motion.span>
               <span className="text-xs text-muted">Joined {joinDate}</span>
+              <div className="flex items-center gap-1 mt-1 justify-center">
+                <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald" : "bg-muted/30"}`} />
+                <span className="text-[10px] text-muted/60">
+                  {isOnline ? "Online" : `Last seen ${lastSeenAgo(user.last_seen_at)}`}
+                </span>
+              </div>
             </div>
           </motion.div>
 

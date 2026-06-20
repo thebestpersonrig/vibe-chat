@@ -19,7 +19,6 @@ interface MessageProps {
   replyMessage?: MessageType | null;
   onReply?: (msg: MessageType) => void;
   onEdit?: (id: string, newContent: string) => void;
-  onPin?: (id: string, pinned: boolean) => void;
   onOpenProfile?: (username: string) => void;
   onOpenLightbox?: (url: string) => void;
   onScrollToMessage?: (id: string) => void;
@@ -27,6 +26,9 @@ interface MessageProps {
   pollData?: Poll | null;
   customEmojis?: CustomEmoji[];
   allUsernames?: string[];
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 function timeAgo(dateString: string): string {
@@ -66,10 +68,15 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
 
   if (allUsernames && allUsernames.length > 0) {
     const sorted = [...allUsernames].sort((a, b) => b.length - a.length);
-    parts.push("(?:" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
+    parts.push("(?:@all|" + sorted.map((n) => "@" + escapeRegex(n)).join("|") + ")");
   } else {
     parts.push("@\\w+");
   }
+
+  parts.push("\\*\\*[^*]+\\*\\*");
+  parts.push("_[^_]+_");
+  parts.push("~~[^~]+~~");
+  parts.push("`[^`]+`");
 
   if (customEmojis && customEmojis.length > 0) {
     parts.push(":(?:" + customEmojis.map((e) => escapeRegex(e.name)).join("|") + "):");
@@ -81,13 +88,18 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
   return tokens.map((token, i) => {
     if (token.startsWith("@")) {
       const mentioned = token.slice(1);
-      const isSelf = mentioned.toLowerCase() === currentUser.toLowerCase();
+      const isAll = mentioned.toLowerCase() === "all";
+      const isSelf = isAll || mentioned.toLowerCase() === currentUser.toLowerCase();
       return (
-        <span key={i} className={`font-semibold rounded px-1.5 py-0.5 ${isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30 mention-highlight" : "text-blue hover:underline cursor-default"}`}>
+        <span key={i} className={`font-semibold rounded px-1.5 py-0.5 ${isAll ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30" : isSelf ? "bg-accent/20 text-accent ring-1 ring-accent/30 mention-highlight" : "text-blue hover:underline cursor-default"}`}>
           {token}
         </span>
       );
     }
+    if (/^\*\*[^*]+\*\*$/.test(token)) return <strong key={i} className="font-bold">{token.slice(2, -2)}</strong>;
+    if (/^_[^_]+_$/.test(token)) return <em key={i} className="italic">{token.slice(1, -1)}</em>;
+    if (/^~~[^~]+~~$/.test(token)) return <del key={i} className="line-through text-muted/60">{token.slice(2, -2)}</del>;
+    if (/^`[^`]+`$/.test(token)) return <code key={i} className="bg-surface/80 text-pink px-1.5 py-0.5 rounded text-xs font-mono border border-border">{token.slice(1, -1)}</code>;
     if (/^https?:\/\//.test(token)) {
       return <a key={i} href={token} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-blue hover:underline break-all transition-colors">{token}</a>;
     }
@@ -137,15 +149,17 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onPin, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames, selectMode, isSelected, onToggleSelect }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
+  const [swipeX, setSwipeX] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
@@ -208,14 +222,62 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     if (e.key === "Escape") { setIsEditing(false); setEditText(message.content); }
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchStartRef.current) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
+    if (dy > 30) { touchStartRef.current = null; setSwipeX(0); return; }
+    if (dx > 0) setSwipeX(Math.min(dx * 0.5, 60));
+  }
+
+  function handleTouchEnd() {
+    if (swipeX > 40 && onReply && !message.id.startsWith("temp-")) {
+      onReply(message);
+    }
+    setSwipeX(0);
+    touchStartRef.current = null;
+  }
+
+  if (selectMode) {
+    return (
+      <div
+        className={`flex items-center gap-3 px-4 md:px-5 py-2 cursor-pointer transition-colors ${isSelected ? "bg-accent/10" : "hover:bg-surface-hover/30"}`}
+        onClick={() => onToggleSelect?.(message.id)}
+      >
+        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? "bg-accent border-accent" : "border-border"}`}>
+          {isSelected && <span className="text-white text-xs">✓</span>}
+        </div>
+        <Avatar username={message.username} avatarColor={message.avatar_color} avatarUrl={message.avatar_url} size="sm" />
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-medium" style={{ color: message.avatar_color }}>{message.username}</span>
+          <p className="text-xs text-muted truncate">{message.content}</p>
+        </div>
+        <span className="text-[10px] text-muted/40 shrink-0">{timeAgo(message.created_at)}</span>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 12, x: isOwn ? 15 : -15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 350, damping: 30, mass: 0.8 }}
-      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      className={`group flex gap-3 px-4 md:px-5 rounded-xl mx-1 msg-hover relative ${isOwn ? "msg-own" : ""} ${isGrouped ? "py-0.5" : "py-2 mt-0.5"}`}
+      style={{ transform: `translateX(${swipeX}px)` }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {swipeX > 20 && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pl-2 text-accent/60">
+          ↩️
+        </div>
+      )}
       {isGrouped ? (
         <div className="w-9 shrink-0" />
       ) : (
@@ -239,16 +301,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
             >
               {message.username}
             </span>
-            {message.is_pinned && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                className="text-[9px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium"
-              >
-                📌 pinned
-              </motion.span>
-            )}
             {senderTitle && (
               <motion.span
                 initial={{ opacity: 0, x: -5 }}
@@ -367,11 +419,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
                   <span className="text-sm">✏️</span> Edit
                 </button>
               )}
-              {isAdmin && onPin && (
-                <button onClick={() => { onPin(message.id, !message.is_pinned); setShowMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer">
-                  <span className="text-sm">📌</span> {message.is_pinned ? "Unpin" : "Pin"}
-                </button>
-              )}
               {canDelete && !confirmDelete && (
                 <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-pink/70 hover:bg-pink/10 hover:text-pink transition-colors cursor-pointer">
                   <span className="text-sm">🗑️</span> Delete
@@ -437,17 +484,6 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
               title="Edit"
             >
               ✏️
-            </motion.button>
-          )}
-          {isAdmin && onPin && (
-            <motion.button
-              onClick={() => { onPin(message.id, !message.is_pinned); setShowReactions(false); setConfirmDelete(false); }}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.85 }}
-              className={`text-sm p-1.5 rounded-md transition-colors cursor-pointer ${message.is_pinned ? "text-amber-400 bg-amber-500/15" : "text-foreground/50 hover:text-foreground hover:bg-surface-hover/60"}`}
-              title={message.is_pinned ? "Unpin" : "Pin"}
-            >
-              📌
             </motion.button>
           )}
           {canDelete && (

@@ -18,6 +18,7 @@ import UserProfileCard from "@/components/UserProfileCard";
 import PollCreator from "@/components/PollCreator";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import StickerPicker from "@/components/StickerPicker";
+import { getBrowserFingerprint } from "@/lib/fingerprint";
 
 const MAX_UPLOAD_MB = 10;
 const SPAM_WINDOW_MS = 4000;
@@ -56,7 +57,9 @@ export default function ChatPage() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [spamCooldown, setSpamCooldown] = useState(false);
-  const [showPinned, setShowPinned] = useState(false);
+  const [showNotifBanner, setShowNotifBanner] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
@@ -85,10 +88,34 @@ export default function ChatPage() {
   messagesRef.current = messages;
   mutedRoomsRef.current = mutedRooms;
 
-  // Tab title with unread count
+  // Tab title + favicon badge with unread count
   useEffect(() => {
     const total = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
     document.title = total > 0 ? `(${total}) Radiant Power Batch` : "Radiant Power Batch";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.font = "bold 52px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("💬", 32, 32);
+      if (total > 0) {
+        ctx.beginPath();
+        ctx.arc(50, 14, 14, 0, 2 * Math.PI);
+        ctx.fillStyle = "#EC4899";
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 16px sans-serif";
+        ctx.fillText(total > 9 ? "9+" : String(total), 50, 15);
+      }
+      const link = document.querySelector<HTMLLinkElement>("link[rel='icon']") || document.createElement("link");
+      link.rel = "icon";
+      link.href = canvas.toDataURL();
+      if (!link.parentElement) document.head.appendChild(link);
+    }
   }, [unreadCounts]);
 
   // Sound + mute preferences from localStorage
@@ -101,11 +128,20 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Request notification permission on first load
+  // Show notification permission banner if not yet decided
   useEffect(() => {
     if (username && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+      setShowNotifBanner(true);
     }
+  }, [username]);
+
+  // Last seen heartbeat
+  useEffect(() => {
+    if (!username) return;
+    const update = () => supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("username", username).then(() => {});
+    update();
+    const interval = setInterval(update, 60000);
+    return () => clearInterval(interval);
   }, [username]);
 
   useEffect(() => {
@@ -264,11 +300,19 @@ export default function ChatPage() {
   }
 
   async function loadAllUsers() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, last_seen_at, created_at")
       .order("username");
-    if (data) setAllUsers(data);
+    if (data) {
+      setAllUsers(data);
+    } else if (error?.message?.includes("last_seen_at")) {
+      const { data: fallback } = await supabase
+        .from("users")
+        .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, created_at")
+        .order("username");
+      if (fallback) setAllUsers(fallback);
+    }
   }
 
   useEffect(() => {
@@ -276,7 +320,8 @@ export default function ChatPage() {
     setMessages([]);
     setTypingUsers([]);
     setReplyingTo(null);
-    setShowPinned(false);
+    setSelectMode(false);
+    setSelectedMsgs(new Set());
     setShowPollCreator(false);
     setShowVoiceRecorder(false);
     const lastRead = localStorage.getItem(`rpb-lastread-${activeRoom.id}`);
@@ -297,7 +342,7 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, newMsg]);
         const isRoomMuted = mutedRoomsRef.current.includes(activeRoomRef.current?.id || "");
         const mentionRe = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`, "i");
-        const isMention = mentionRe.test(newMsg.content);
+        const isMention = mentionRe.test(newMsg.content) || /@all(?!\w)/i.test(newMsg.content);
         const isReplyToMe = newMsg.reply_to && messagesRef.current.find(m => m.id === newMsg.reply_to)?.username === username;
         if (isMention || isReplyToMe) {
           if (soundEnabledRef.current && !isRoomMuted) playMentionSound();
@@ -620,10 +665,38 @@ export default function ChatPage() {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
   }
 
-  async function handleTogglePin(id: string, pinned: boolean) {
-    const { error } = await supabase.from("messages").update({ is_pinned: pinned }).eq("id", id);
-    if (error) { console.error("Pin failed:", error.message); return; }
-    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, is_pinned: pinned } : m));
+  async function handlePurgeMessages(target: string) {
+    if (!activeRoom) return;
+    await supabase.from("messages").delete().eq("username", target).eq("room_id", activeRoom.id);
+    setMessages(prev => prev.filter(m => m.username !== target));
+  }
+
+  async function handleFingerprintBan(target: string) {
+    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
+    if (user?.fingerprint) {
+      await supabase.from("banned_fingerprints").insert({ fingerprint: user.fingerprint, banned_username: target });
+    }
+    await supabase.from("users").update({ is_banned: true }).eq("username", target);
+    kickChannelRef.current?.send({ type: "broadcast", event: "kick", payload: { target } });
+    loadAllUsers();
+  }
+
+  async function handleFingerprintUnban(target: string) {
+    const { data: user } = await supabase.from("users").select("fingerprint").eq("username", target).single();
+    if (user?.fingerprint) {
+      await supabase.from("banned_fingerprints").delete().eq("fingerprint", user.fingerprint);
+    }
+    await supabase.from("users").update({ is_banned: false }).eq("username", target);
+    loadAllUsers();
+  }
+
+  async function handleBulkDelete() {
+    if (selectedMsgs.size === 0) return;
+    const ids = Array.from(selectedMsgs);
+    await supabase.from("messages").delete().in("id", ids);
+    setMessages(prev => prev.filter(m => !selectedMsgs.has(m.id)));
+    setSelectedMsgs(new Set());
+    setSelectMode(false);
   }
 
   function handleOpenProfile(uname: string) {
@@ -812,12 +885,15 @@ export default function ChatPage() {
     setLoginChecking(true);
     setLoginError("");
 
+    let fingerprint = "";
+    try { fingerprint = await getBrowserFingerprint(); } catch {}
+
     if (loginIsNew) {
       const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color }),
+        body: JSON.stringify({ action: "signup", username: loginUsername, password, avatarColor: color, fingerprint }),
       });
       const data = await res.json();
 
@@ -836,7 +912,7 @@ export default function ChatPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "login", username: loginUsername, password }),
+        body: JSON.stringify({ action: "login", username: loginUsername, password, fingerprint }),
       });
       const data = await res.json();
 
@@ -890,8 +966,6 @@ export default function ChatPage() {
     : activeRoom?.name;
 
   const activeRoomDisplayEmoji = activeRoom?.type === "dm" ? "💬" : activeRoom?.emoji;
-
-  const pinnedMessages = messages.filter((m) => m.is_pinned);
 
   const replyLookup = useCallback((id: string | null | undefined) => {
     if (!id) return null;
@@ -1030,7 +1104,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {showAdminPanel && (
-          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} />
+          <AdminPanel allUsers={allUsers} onClose={() => setShowAdminPanel(false)} onUpdate={loadAllUsers} onDeleteUser={handleAdminDeleteUser} onRenameUser={handleAdminRenameUser} onBanUser={handleAdminBanUser} onUnbanUser={handleAdminUnbanUser} onPurgeMessages={handlePurgeMessages} onFingerprintBan={handleFingerprintBan} onFingerprintUnban={handleFingerprintUnban} />
         )}
       </AnimatePresence>
 
@@ -1040,7 +1114,7 @@ export default function ChatPage() {
 
       <AnimatePresence>
         {profileUser && (
-          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} />
+          <UserProfileCard user={profileUser} onClose={() => setProfileUser(null)} onStartDm={(u) => { handleStartDm(u); setProfileUser(null); }} currentUser={username} isOnline={onlineUsers.some(u => u.username === profileUser.username)} />
         )}
       </AnimatePresence>
 
@@ -1085,13 +1159,22 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {activeRoom && pinnedMessages.length > 0 && (
-              <button
-                onClick={() => setShowPinned(!showPinned)}
-                className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${showPinned ? "bg-amber-500/15 text-amber-400" : "text-muted/40 hover:text-muted hover:bg-surface-hover"}`}
-              >
-                📌 {pinnedMessages.length}
-              </button>
+            {activeRoom && isAdmin && (
+              selectMode ? (
+                <button
+                  onClick={() => { setSelectMode(false); setSelectedMsgs(new Set()); }}
+                  className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer bg-pink/15 text-pink"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  onClick={() => setSelectMode(true)}
+                  className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer text-muted/40 hover:text-muted hover:bg-surface-hover"
+                >
+                  Select
+                </button>
+              )
             )}
             {activeRoom && (
               <span className="text-[10px] text-muted/30 hidden sm:block">Messages clear every 24h</span>
@@ -1099,26 +1182,32 @@ export default function ChatPage() {
           </div>
         </motion.div>
 
-        {/* Pinned messages bar */}
+        {/* Notification permission banner */}
         <AnimatePresence>
-          {showPinned && pinnedMessages.length > 0 && (
+          {showNotifBanner && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border-b border-amber-500/20 bg-amber-500/5"
+              className="overflow-hidden border-b border-accent/20 bg-accent/5"
             >
-              <div className="px-4 py-2 max-h-32 overflow-y-auto">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">📌 Pinned Messages</span>
-                  <button onClick={() => setShowPinned(false)} className="text-muted/40 hover:text-muted text-xs cursor-pointer">✕</button>
+              <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm">🔔</span>
+                  <span className="text-xs text-foreground/70">Enable notifications to get pinged when someone mentions you</span>
                 </div>
-                {pinnedMessages.map((msg) => (
-                  <div key={msg.id} className="text-[11px] text-foreground/70 py-0.5 truncate">
-                    <span className="text-accent/60 font-medium">{msg.username}:</span>{" "}
-                    {msg.content}
-                  </div>
-                ))}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      const result = await Notification.requestPermission();
+                      if (result !== "default") setShowNotifBanner(false);
+                    }}
+                    className="text-[10px] bg-accent/20 hover:bg-accent/30 text-accent px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium"
+                  >
+                    Enable
+                  </button>
+                  <button onClick={() => setShowNotifBanner(false)} className="text-muted/40 hover:text-muted text-xs cursor-pointer">✕</button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1203,7 +1292,6 @@ export default function ChatPage() {
                           replyMessage={replyLookup(msg.reply_to)}
                           onReply={(m) => setReplyingTo(m)}
                           onEdit={handleEditMessage}
-                          onPin={handleTogglePin}
                           onOpenProfile={handleOpenProfile}
                           onOpenLightbox={(url) => setLightboxUrl(url)}
                           onScrollToMessage={scrollToMessage}
@@ -1211,11 +1299,43 @@ export default function ChatPage() {
                           pollData={pollLookup(msg.content)}
                           customEmojis={customEmojis}
                           allUsernames={allUsernames}
+                          selectMode={selectMode}
+                          isSelected={selectedMsgs.has(msg.id)}
+                          onToggleSelect={(id) => setSelectedMsgs(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
                         />
                       </Fragment>
                     );
                   })}
                 </div>
+
+                {/* Select mode floating bar */}
+                <AnimatePresence>
+                  {selectMode && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="sticky bottom-0 px-4 py-2.5 glass-strong border-t border-border flex items-center justify-between gap-3 z-10"
+                    >
+                      <button
+                        onClick={() => {
+                          if (selectedMsgs.size === messages.length) setSelectedMsgs(new Set());
+                          else setSelectedMsgs(new Set(messages.map(m => m.id)));
+                        }}
+                        className="text-[10px] text-accent hover:text-accent-hover cursor-pointer font-medium px-3 py-1.5 rounded-lg hover:bg-accent/10 transition-colors"
+                      >
+                        {selectedMsgs.size === messages.length ? "Deselect All" : "Select All"}
+                      </button>
+                      <button
+                        onClick={handleBulkDelete}
+                        disabled={selectedMsgs.size === 0}
+                        className="text-[10px] bg-pink/15 hover:bg-pink/25 text-pink px-4 py-1.5 rounded-lg cursor-pointer transition-colors font-medium disabled:opacity-30"
+                      >
+                        Delete Selected ({selectedMsgs.size})
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <TypingIndicator users={typingUsers} />
 
