@@ -77,10 +77,23 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [editBio, setEditBio] = useState("");
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [dragRoomId, setDragRoomId] = useState<string | null>(null);
+  const [dragOverRoomId, setDragOverRoomId] = useState<string | null>(null);
+  const [roomOrder, setRoomOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("rpb-room-order") || "[]"); } catch { return []; }
+  });
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const groupRooms = rooms.filter((r) => r.type !== "dm");
+  const groupRoomsRaw = rooms.filter((r) => r.type !== "dm");
+  const groupRooms = [...groupRoomsRaw].sort((a, b) => {
+    const ai = roomOrder.indexOf(a.id);
+    const bi = roomOrder.indexOf(b.id);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return 1;
+    return ai - bi;
+  });
   const dmRooms = rooms.filter((r) => r.type === "dm");
   const currentUserData = allUsers.find((u) => u.username === username);
 
@@ -151,6 +164,20 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
     } else {
       setPasswordError("Current password is wrong");
     }
+  }
+
+  function handleRoomDrop(targetId: string) {
+    if (!dragRoomId || dragRoomId === targetId) { setDragRoomId(null); setDragOverRoomId(null); return; }
+    const currentOrder = groupRooms.map((r) => r.id);
+    const fromIdx = currentOrder.indexOf(dragRoomId);
+    const toIdx = currentOrder.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    currentOrder.splice(fromIdx, 1);
+    currentOrder.splice(toIdx, 0, dragRoomId);
+    setRoomOrder(currentOrder);
+    localStorage.setItem("rpb-room-order", JSON.stringify(currentOrder));
+    setDragRoomId(null);
+    setDragOverRoomId(null);
   }
 
   async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -358,12 +385,22 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
             const unread = unreadCounts[room.id] || 0;
             const isActive = activeRoomId === room.id;
             const roomMuted = mutedRooms.includes(room.id);
+            const isDragOver = dragOverRoomId === room.id && dragRoomId !== room.id;
             return (
-              <div key={room.id} className="group/room relative">
+              <div
+                key={room.id}
+                className={`group/room relative ${isDragOver ? "border-t-2 border-accent" : ""}`}
+                draggable
+                onDragStart={() => setDragRoomId(room.id)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverRoomId(room.id); }}
+                onDragLeave={() => setDragOverRoomId(null)}
+                onDrop={(e) => { e.preventDefault(); handleRoomDrop(room.id); }}
+                onDragEnd={() => { setDragRoomId(null); setDragOverRoomId(null); }}
+              >
                 <motion.button
                   onClick={() => handleRoomClick(room)}
                   whileTap={{ scale: 0.97 }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${isActive ? "room-active text-foreground" : `${roomMuted ? "opacity-50" : ""} text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent`}`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer hover-lift ${dragRoomId === room.id ? "opacity-40" : ""} ${isActive ? "room-active text-foreground" : `${roomMuted ? "opacity-50" : ""} text-muted hover:text-foreground hover:bg-surface-hover/50 border border-transparent`}`}
                 >
                   <motion.span
                     className="text-lg inline-block"
