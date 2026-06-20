@@ -68,6 +68,7 @@ export default function ChatPage() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [mutedRooms, setMutedRooms] = useState<string[]>([]);
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
+  const [readReceipts, setReadReceipts] = useState<Record<string, string[]>>({});
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -338,6 +339,7 @@ export default function ChatPage() {
     setUnreadDividerMsgId(lastRead);
     loadMessages(activeRoom.id);
     loadPolls(activeRoom.id);
+    loadReadReceipts(activeRoom.id);
     setNewMsgCount(0);
     setUnreadCounts((prev) => ({ ...prev, [activeRoom.id]: 0 }));
 
@@ -403,6 +405,15 @@ export default function ChatPage() {
         });
         setOnlineUsers(users);
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "read_receipts", filter: `room_id=eq.${activeRoom.id}` }, (payload) => {
+        const rr = payload.new as { message_id: string; username: string };
+        if (rr.username === username) return;
+        setReadReceipts((prev) => {
+          const existing = prev[rr.message_id] || [];
+          if (existing.includes(rr.username)) return prev;
+          return { ...prev, [rr.message_id]: [...existing, rr.username] };
+        });
+      })
       .on("broadcast", { event: "typing" }, ({ payload: p }) => {
         if (p.username === username) return;
         setTypingUsers((prev) => prev.includes(p.username) ? prev : [...prev, p.username]);
@@ -437,9 +448,50 @@ export default function ChatPage() {
       .order("created_at", { ascending: false })
       .limit(200);
     if (msgs) {
-      setMessages(msgs.reverse());
+      const sorted = msgs.reverse();
+      setMessages(sorted);
       setTimeout(() => scrollToBottom(true), 50);
+      const unread = sorted.filter((m) => m.username !== username && !m.id.startsWith("temp-"));
+      if (unread.length > 0) markMessagesRead(roomId, unread.map((m) => m.id));
     }
+  }
+
+  async function loadReadReceipts(roomId: string) {
+    const { data } = await supabase
+      .from("read_receipts")
+      .select("message_id, username")
+      .eq("room_id", roomId);
+    if (data) {
+      const map: Record<string, string[]> = {};
+      for (const r of data) {
+        if (!map[r.message_id]) map[r.message_id] = [];
+        map[r.message_id].push(r.username);
+      }
+      setReadReceipts(map);
+    }
+  }
+
+  const markReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingReadRef = useRef<Set<string>>(new Set());
+
+  function markMessagesRead(roomId: string, messageIds: string[]) {
+    for (const id of messageIds) pendingReadRef.current.add(id);
+    if (markReadTimeoutRef.current) clearTimeout(markReadTimeoutRef.current);
+    markReadTimeoutRef.current = setTimeout(async () => {
+      const ids = Array.from(pendingReadRef.current);
+      pendingReadRef.current.clear();
+      if (ids.length === 0) return;
+      const rows = ids.map((mid) => ({ message_id: mid, room_id: roomId, username }));
+      await supabase.from("read_receipts").upsert(rows, { onConflict: "message_id,username" });
+      setReadReceipts((prev) => {
+        const next = { ...prev };
+        for (const mid of ids) {
+          if (!next[mid]) next[mid] = [];
+          if (!next[mid].includes(username)) next[mid] = [...next[mid], username];
+        }
+        return next;
+      });
+    }, 500);
   }
 
   function scrollToBottom(instant = false) {
@@ -461,6 +513,8 @@ export default function ChatPage() {
         if (!lastMsg.id.startsWith("temp-")) {
           localStorage.setItem(`rpb-lastread-${room.id}`, lastMsg.id);
         }
+        const unread = msgs.filter((m) => m.username !== username && !m.id.startsWith("temp-"));
+        if (unread.length > 0) markMessagesRead(room.id, unread.map((m) => m.id));
       }
     }
   }
@@ -1002,6 +1056,15 @@ export default function ChatPage() {
 
   const allUsernames = useMemo(() => nonBannedUsers.map(u => u.username), [nonBannedUsers]);
 
+  const roomOtherMemberCount = useMemo(() => {
+    if (!activeRoom) return 0;
+    if (activeRoom.type === "dm") {
+      const names = dmNames[activeRoom.id];
+      return names ? names.split(", ").length : 1;
+    }
+    return nonBannedUsers.filter((u) => u.username !== username).length;
+  }, [activeRoom, nonBannedUsers, dmNames, username]);
+
   const mentionableUsers = useMemo(() => {
     if (!activeRoom || activeRoom.type !== "dm") return nonBannedUsers;
     const names = dmNames[activeRoom.id];
@@ -1322,6 +1385,8 @@ export default function ChatPage() {
                           selectMode={selectMode}
                           isSelected={selectedMsgs.has(msg.id)}
                           onToggleSelect={(id) => setSelectedMsgs(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
+                          readByAll={msg.username === username && !msg.id.startsWith("temp-") && (readReceipts[msg.id]?.filter((u) => u !== username).length ?? 0) >= roomOtherMemberCount}
+                          readByNames={msg.username === username ? readReceipts[msg.id]?.filter((u) => u !== username) : undefined}
                         />
                       </Fragment>
                     );

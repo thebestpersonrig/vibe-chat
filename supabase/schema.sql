@@ -193,6 +193,7 @@ create policy "Anyone can vote" on poll_votes for insert with check (true);
 create policy "Anyone can change vote" on poll_votes for update using (true) with check (true);
 create policy "Anyone can remove vote" on poll_votes for delete using (true);
 
+alter publication supabase_realtime add table read_receipts;
 alter publication supabase_realtime add table polls;
 alter publication supabase_realtime add table poll_votes;
 
@@ -231,6 +232,23 @@ create policy "Anyone can delete stickers" on stickers for delete using (true);
 
 alter publication supabase_realtime add table custom_emojis;
 alter publication supabase_realtime add table stickers;
+
+-- Read receipts
+create table if not exists read_receipts (
+  id uuid default gen_random_uuid() primary key,
+  message_id uuid references messages(id) on delete cascade not null,
+  room_id uuid references rooms(id) on delete cascade not null,
+  username text not null,
+  read_at timestamptz default now(),
+  unique(message_id, username)
+);
+
+create index if not exists idx_read_receipts_room on read_receipts(room_id, username);
+create index if not exists idx_read_receipts_message on read_receipts(message_id);
+
+alter table read_receipts enable row level security;
+create policy "Anyone can read read_receipts" on read_receipts for select using (true);
+create policy "Anyone can insert read_receipts" on read_receipts for insert with check (true);
 
 -- Auto-cleanup: delete messages older than 24 hours
 -- Call this with pg_cron or a scheduled function

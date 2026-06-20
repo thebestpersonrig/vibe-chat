@@ -29,6 +29,8 @@ interface MessageProps {
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
+  readByAll?: boolean;
+  readByNames?: string[];
 }
 
 function timeAgo(dateString: string): string {
@@ -149,7 +151,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames, selectMode, isSelected, onToggleSelect }: MessageProps) {
+export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames, selectMode, isSelected, onToggleSelect, readByAll, readByNames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -316,6 +318,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
             <span className="text-[10px] text-muted/40 cursor-default select-none" title={new Date(message.created_at).toLocaleString()}>
               {timeAgo(message.created_at)}
               {message.edited_at && <span className="ml-1 text-muted/30">(edited)</span>}
+              {isOwn && !isTemp && (
+                <span className={`ml-1 ${readByAll ? "text-blue" : "text-muted/30"}`} title={readByNames && readByNames.length > 0 ? `Read by ${readByNames.join(", ")}` : "Sent"}>
+                  {readByAll ? "✓✓" : "✓"}
+                </span>
+              )}
             </span>
           </div>
         )}
