@@ -121,17 +121,39 @@ function extractFirstUrl(content: string): string | null {
   return match?.[0] || null;
 }
 
+function getFileIcon(url: string): string {
+  const ext = url.split(/[?#]/)[0].split(".").pop()?.toLowerCase() || "";
+  if (ext === "pdf") return "📄";
+  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "🗜️";
+  if (["doc", "docx"].includes(ext)) return "📝";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
+  if (["ppt", "pptx"].includes(ext)) return "📽️";
+  if (["txt", "json", "xml"].includes(ext)) return "📃";
+  return "📎";
+}
+
+function getFileName(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const name = decodeURIComponent(path.split("/").pop() || "file");
+    return name.length > 40 ? name.slice(0, 37) + "..." : name;
+  } catch { return "file"; }
+}
+
 function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLightbox?: (url: string) => void }) {
   const media = detectMedia(content);
   if (media.type === "image")
     return (
-      <img
-        src={media.url}
-        alt=""
-        onClick={() => onOpenLightbox?.(media.url)}
-        className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover cursor-zoom-in"
-        loading="lazy"
-      />
+      <div className="mt-1.5">
+        <img
+          src={media.url}
+          alt={media.text || ""}
+          onClick={() => onOpenLightbox?.(media.url)}
+          className="max-w-xs md:max-w-sm rounded-2xl max-h-80 object-contain ring-1 ring-border media-hover cursor-zoom-in"
+          loading="lazy"
+        />
+        {media.text && <p className="text-xs text-muted/70 mt-1 italic">{media.text}</p>}
+      </div>
     );
   if (media.type === "gif")
     return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover" loading="lazy" />;
@@ -139,6 +161,17 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
     return <AudioPlayer url={media.url} />;
   if (media.type === "video")
     return <video src={media.url} controls className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 ring-1 ring-border" preload="metadata" />;
+  if (media.type === "file")
+    return (
+      <a href={media.url} target="_blank" rel="noopener noreferrer" download className="mt-1.5 flex items-center gap-3 px-4 py-3 rounded-xl bg-surface/80 border border-border hover:bg-surface-hover transition-all max-w-xs group">
+        <span className="text-2xl">{getFileIcon(media.url)}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate group-hover:text-accent transition-colors">{getFileName(media.url)}</p>
+          <p className="text-[10px] text-muted/50">Click to download</p>
+        </div>
+        <span className="text-muted/40 group-hover:text-accent transition-colors">⬇</span>
+      </a>
+    );
   if (media.type === "youtube")
     return (
       <div className="mt-1.5">

@@ -114,11 +114,15 @@ export const ROOM_EMOJIS = [
 export const REACTION_EMOJIS = ["❤️", "😂", "🔥", "👍", "😮", "🎉", "💯", "👀"];
 
 export function detectMedia(content: string): {
-  type: "image" | "gif" | "youtube" | "video" | "audio" | null;
+  type: "image" | "gif" | "youtube" | "video" | "audio" | "file" | null;
   url: string;
   text: string;
 } {
   const trimmed = content.trim();
+  // Captioned image: "[caption text]imageUrl"
+  const captionMatch = trimmed.match(/^\[([^\]]+)\](https?:\/\/.+\.(jpg|jpeg|png|webp|avif)(\?.*)?)$/i);
+  if (captionMatch)
+    return { type: "image", url: captionMatch[2], text: captionMatch[1] };
   if (/^https?:\/\/.+\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed))
     return { type: "image", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.gif(\?.*)?$/i.test(trimmed) || /^https?:\/\/media\d*\.giphy\.com\//i.test(trimmed))
@@ -127,6 +131,8 @@ export function detectMedia(content: string): {
     return { type: "audio", url: trimmed, text: "" };
   if (/^https?:\/\/.+\.(mp4|webm|mov)(\?.*)?$/i.test(trimmed))
     return { type: "video", url: trimmed, text: "" };
+  if (/^https?:\/\/.+\.(pdf|zip|rar|7z|tar|gz|doc|docx|xls|xlsx|ppt|pptx|txt|csv|json|xml)(\?.*)?$/i.test(trimmed))
+    return { type: "file", url: trimmed, text: "" };
   const ytMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
     const remaining = trimmed.replace(ytMatch[0], "").trim();

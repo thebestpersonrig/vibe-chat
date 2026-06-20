@@ -652,9 +652,20 @@ export default function ChatPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    setUploading(true);
-    const url = await uploadImage(file);
-    if (url) await sendMediaMessage(url);
+    const isImage = file.type.startsWith("image/");
+    if (isImage) {
+      const caption = prompt("Add a caption (optional):");
+      setUploading(true);
+      const url = await uploadImage(file);
+      if (url) {
+        const msg = caption?.trim() ? `[${caption.trim()}]${url}` : url;
+        await sendMediaMessage(msg);
+      }
+    } else {
+      setUploading(true);
+      const url = await uploadImage(file, "files/");
+      if (url) await sendMediaMessage(url);
+    }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -1495,7 +1506,7 @@ export default function ChatPage() {
                     <AnimatePresence>{showStickerPicker && <StickerPicker onSelect={(sticker) => { sendMediaMessage(sticker); setShowStickerPicker(false); }} onClose={() => setShowStickerPicker(false)} customStickers={stickers} />}</AnimatePresence>
                     <AnimatePresence>{showPollCreator && <PollCreator onSubmit={handleCreatePoll} onCancel={() => setShowPollCreator(false)} />}</AnimatePresence>
 
-                    <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" onChange={handleFileUpload} className="hidden" />
+                    <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml" onChange={handleFileUpload} className="hidden" />
                     <motion.button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
