@@ -56,20 +56,28 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser,
         style={{ perspective: "1000px" }}
       >
         <motion.div
-          className="h-20 relative overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${user.avatar_color}30, ${user.avatar_color}10, rgba(236,72,153,0.15))` }}
+          className="h-24 relative overflow-hidden"
+          style={
+            user.banner_url?.startsWith("linear-gradient")
+              ? { background: user.banner_url }
+              : user.banner_url
+              ? { backgroundImage: `url(${user.banner_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+              : { background: `linear-gradient(135deg, ${user.avatar_color}30, ${user.avatar_color}10, rgba(236,72,153,0.15))` }
+          }
         >
-          <motion.div
-            className="absolute inset-0"
-            animate={{
-              background: [
-                `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
-                `linear-gradient(225deg, ${user.avatar_color}20, transparent)`,
-                `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
-              ],
-            }}
-            transition={{ duration: 4, repeat: Infinity }}
-          />
+          {!user.banner_url && (
+            <motion.div
+              className="absolute inset-0"
+              animate={{
+                background: [
+                  `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
+                  `linear-gradient(225deg, ${user.avatar_color}20, transparent)`,
+                  `linear-gradient(135deg, ${user.avatar_color}30, transparent)`,
+                ],
+              }}
+              transition={{ duration: 4, repeat: Infinity }}
+            />
+          )}
           <motion.div
             className="absolute -bottom-6 left-1/2 -translate-x-1/2"
             initial={{ y: -30, scale: 0 }}
@@ -118,6 +126,17 @@ export default function UserProfileCard({ user, onClose, onStartDm, currentUser,
               className="text-xs text-muted/60 mt-1"
             >
               {user.status_emoji} {user.status_text || ""}
+            </motion.p>
+          )}
+
+          {user.bio && (
+            <motion.p
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-xs text-muted/80 mt-2.5 px-2 leading-relaxed"
+            >
+              {user.bio}
             </motion.p>
           )}
 

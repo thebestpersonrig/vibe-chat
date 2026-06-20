@@ -33,9 +33,24 @@ interface SidebarProps {
   onSetStatus: (emoji: string, text: string) => void;
   mutedRooms: string[];
   onToggleMuteRoom: (roomId: string) => void;
+  onBioChange: (bio: string) => void;
+  onBannerChange: (bannerUrl: string | null) => void;
 }
 
-export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange, onSetStatus, mutedRooms, onToggleMuteRoom }: SidebarProps) {
+const PRESET_BANNERS = [
+  "linear-gradient(135deg, #667eea, #764ba2)",
+  "linear-gradient(135deg, #f093fb, #f5576c)",
+  "linear-gradient(135deg, #4facfe, #00f2fe)",
+  "linear-gradient(135deg, #43e97b, #38f9d7)",
+  "linear-gradient(135deg, #fa709a, #fee140)",
+  "linear-gradient(135deg, #a18cd1, #fbc2eb)",
+  "linear-gradient(135deg, #fccb90, #d57eeb)",
+  "linear-gradient(135deg, #e0c3fc, #8ec5fc)",
+  "linear-gradient(135deg, #f5576c, #ff6a00)",
+  "linear-gradient(135deg, #0c3483, #a2b6df)",
+];
+
+export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, avatarColor, avatarUrl, isAdmin, allUsers, onAvatarChange, onLogout, onDeleteAccount, onDeleteRoom, onStartDm, onStartGroupDm, onOpenAdminPanel, unreadCounts, dmNames, isOpen, onClose, soundEnabled, onToggleSound, onPasswordChange, onSetStatus, mutedRooms, onToggleMuteRoom, onBioChange, onBannerChange }: SidebarProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [showGroupDmPicker, setShowGroupDmPicker] = useState(false);
@@ -59,7 +74,11 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
   const [statusEmoji, setStatusEmoji] = useState("");
   const [statusText, setStatusText] = useState("");
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const groupRooms = rooms.filter((r) => r.type !== "dm");
   const dmRooms = rooms.filter((r) => r.type === "dm");
@@ -132,6 +151,17 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
     } else {
       setPasswordError("Current password is wrong");
     }
+  }
+
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return;
+    setUploadingBanner(true);
+    const url = await uploadImage(file, "banners/");
+    if (url) onBannerChange(url);
+    setUploadingBanner(false);
+    if (bannerInputRef.current) bannerInputRef.current.value = "";
   }
 
   return (
@@ -436,6 +466,76 @@ export default function Sidebar({ rooms, activeRoomId, onSelectRoom, username, a
                     >
                       Clear
                     </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Profile editor */}
+          <button
+            onClick={() => {
+              setShowProfileEditor(!showProfileEditor);
+              setEditBio(currentUserData?.bio || "");
+            }}
+            className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer border ${showProfileEditor ? "bg-accent/10 border-accent/20 text-accent" : "bg-surface/50 border-border text-muted hover:bg-surface-hover"}`}
+          >
+            🎨 Edit Profile
+          </button>
+          <AnimatePresence>
+            {showProfileEditor && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="p-3 rounded-xl bg-surface/60 border border-border space-y-3">
+                  <div>
+                    <label className="text-[10px] text-muted font-medium block mb-1">Bio</label>
+                    <textarea
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      placeholder="Tell people about yourself..."
+                      maxLength={150}
+                      rows={2}
+                      className="w-full bg-background/50 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all resize-none"
+                    />
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[9px] text-muted/40">{editBio.length}/150</span>
+                      <button
+                        onClick={() => { onBioChange(editBio); }}
+                        className="text-[10px] bg-accent/20 hover:bg-accent/30 text-accent px-3 py-1 rounded-lg cursor-pointer transition-colors font-medium"
+                      >
+                        Save Bio
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted font-medium block mb-1.5">Banner</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {PRESET_BANNERS.map((bg, i) => (
+                        <button
+                          key={i}
+                          onClick={() => onBannerChange(bg)}
+                          className={`h-8 rounded-lg cursor-pointer transition-all hover:scale-105 ring-1 ${currentUserData?.banner_url === bg ? "ring-accent ring-2 scale-105" : "ring-border/30"}`}
+                          style={{ background: bg }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      <input ref={bannerInputRef} type="file" accept="image/*" onChange={handleBannerUpload} className="hidden" />
+                      <button
+                        onClick={() => bannerInputRef.current?.click()}
+                        disabled={uploadingBanner}
+                        className="flex-1 text-[10px] bg-surface hover:bg-surface-hover text-muted py-1.5 rounded-lg cursor-pointer transition-colors border border-border disabled:opacity-50"
+                      >
+                        {uploadingBanner ? "Uploading..." : "📷 Custom Image"}
+                      </button>
+                      {currentUserData?.banner_url && (
+                        <button
+                          onClick={() => onBannerChange(null)}
+                          className="flex-1 text-[10px] bg-surface hover:bg-surface-hover text-muted py-1.5 rounded-lg cursor-pointer transition-colors border border-border"
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>

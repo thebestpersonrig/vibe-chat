@@ -17,6 +17,8 @@ create table if not exists users (
   muted_until timestamptz,
   status_emoji text,
   status_text text,
+  bio text,
+  banner_url text,
   fingerprint text,
   last_seen_at timestamptz default now(),
   created_at timestamptz default now()
@@ -83,7 +85,7 @@ alter table room_members enable row level security;
 drop view if exists users_public;
 create view users_public as
   select id, username, avatar_color, avatar_url, is_admin, is_banned, title,
-         muted_until, status_emoji, status_text, last_seen_at, created_at
+         bio, banner_url, muted_until, status_emoji, status_text, last_seen_at, created_at
   from users;
 
 -- Banned fingerprints table

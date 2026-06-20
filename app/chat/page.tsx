@@ -167,8 +167,8 @@ export default function ChatPage() {
         const { data, error } = await supabase.from("users").select("username, avatar_color, avatar_url, is_admin, is_banned").eq("username", parsed.username).single();
         if (error && error.code !== "PGRST116") {
           // Query failed (network, timeout, etc.) — keep session alive from localStorage
-          setUsername(parsed.username);
-          setAvatarColor(parsed.avatarColor);
+          setUsername(parsed.username!);
+          setAvatarColor(parsed.avatarColor || "");
           setAvatarUrl(parsed.avatarUrl || null);
           setLoading(false);
           return;
@@ -312,7 +312,7 @@ export default function ChatPage() {
   async function loadAllUsers() {
     const { data, error } = await supabase
       .from("users")
-      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, muted_until, status_emoji, status_text, last_seen_at, created_at")
+      .select("id, username, avatar_color, avatar_url, is_admin, is_banned, title, bio, banner_url, muted_until, status_emoji, status_text, last_seen_at, created_at")
       .order("username");
     if (data) {
       setAllUsers(data);
@@ -659,6 +659,16 @@ export default function ChatPage() {
 
   async function handleSetStatus(emoji: string, text: string) {
     await supabase.from("users").update({ status_emoji: emoji || null, status_text: text || null }).eq("username", username);
+    loadAllUsers();
+  }
+
+  async function handleBioChange(bio: string) {
+    await supabase.from("users").update({ bio: bio || null }).eq("username", username);
+    loadAllUsers();
+  }
+
+  async function handleBannerChange(bannerUrl: string | null) {
+    await supabase.from("users").update({ banner_url: bannerUrl }).eq("username", username);
     loadAllUsers();
   }
 
@@ -1110,7 +1120,7 @@ export default function ChatPage() {
       <div className="aurora-bg" />
       <div className="noise-overlay" />
 
-      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} mutedRooms={mutedRooms} onToggleMuteRoom={handleToggleMuteRoom} />
+      <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} mutedRooms={mutedRooms} onToggleMuteRoom={handleToggleMuteRoom} onBioChange={handleBioChange} onBannerChange={handleBannerChange} />
 
       <AnimatePresence>
         {showAdminPanel && (

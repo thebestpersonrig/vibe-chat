@@ -35,6 +35,8 @@ export interface User {
   is_admin?: boolean;
   is_banned?: boolean;
   title?: string | null;
+  bio?: string | null;
+  banner_url?: string | null;
 
   muted_until?: string | null;
   status_emoji?: string | null;
