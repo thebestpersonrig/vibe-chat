@@ -156,10 +156,12 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
   const [swipeX, setSwipeX] = useState(0);
+  const [menuFlip, setMenuFlip] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const isTemp = message.id.startsWith("temp-");
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
@@ -388,9 +390,14 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
       </div>
 
       {/* Mobile: three-dot dropdown */}
+      {!isTemp && (
       <div className="md:hidden relative shrink-0 self-start mt-1" ref={menuRef}>
         <motion.button
-          onClick={() => { setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false); }}
+          onClick={() => {
+            const rect = menuRef.current?.getBoundingClientRect();
+            setMenuFlip(!!rect && rect.bottom > window.innerHeight - 200);
+            setShowMenu(!showMenu); setShowReactions(false); setConfirmDelete(false);
+          }}
           whileTap={{ scale: 0.9 }}
           className="text-muted/50 hover:text-muted text-sm transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-surface-hover/50"
         >
@@ -400,11 +407,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
         <AnimatePresence>
           {showMenu && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              initial={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              exit={{ opacity: 0, scale: 0.9, y: menuFlip ? 4 : -4 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-1 glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden"
+              className={`absolute right-0 ${menuFlip ? "bottom-full mb-1" : "top-full mt-1"} glass-strong rounded-xl border border-border glow z-20 min-w-[140px] overflow-hidden`}
             >
               <button onClick={() => setShowReactions(!showReactions)} className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs text-foreground/70 hover:bg-surface-hover/50 hover:text-foreground transition-colors cursor-pointer">
                 <span className="text-sm">😊</span> React
@@ -448,8 +455,10 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           )}
         </AnimatePresence>
       </div>
+      )}
 
-      {/* Desktop: hover action bar */}
+      {/* Desktop: hover action bar — hidden during edit and on temp messages */}
+      {!isEditing && !isTemp && (
       <div
         ref={hoverBarRef}
         className={`hidden md:block absolute -top-3 right-3 z-20 transition-all duration-150 ${showReactions || confirmDelete ? "opacity-100" : "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto"}`}
@@ -537,6 +546,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           )}
         </AnimatePresence>
       </div>
+      )}
     </motion.div>
   );
 }
