@@ -132,7 +132,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
       />
     );
   if (media.type === "gif")
-    return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-64 ring-1 ring-border media-hover" loading="lazy" />;
+    return <img src={media.url} alt="GIF" className="max-w-xs md:max-w-sm rounded-2xl mt-1.5 max-h-80 object-contain ring-1 ring-border media-hover" loading="lazy" />;
   if (media.type === "audio")
     return <AudioPlayer url={media.url} />;
   if (media.type === "video")
