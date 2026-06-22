@@ -74,11 +74,7 @@ function DiceRollPopup({ onRoll, onClose }: { onRoll: (result: string) => void; 
     for (let i = 0; i < count; i++) {
       results.push(Math.floor(Math.random() * sides) + 1);
     }
-    const total = results.reduce((a, b) => a + b, 0);
-    const diceStr = count > 1
-      ? `🎲 rolled **${count}d${sides}** → [${results.join(", ")}] = **${total}**`
-      : `🎲 rolled **1d${sides}** → **${results[0]}**`;
-    onRoll(diceStr);
+    onRoll(`[dice:${count}:${sides}:${results.join(",")}]`);
     onClose();
   }
 
@@ -142,9 +138,7 @@ export default function EntertainmentMenu({ onSendMessage, onTriggerConfetti, is
   }, [isOpen, onClose]);
 
   function coinFlip() {
-    const result = Math.random() < 0.5 ? "Heads" : "Tails";
-    const emoji = result === "Heads" ? "👑" : "🌙";
-    onSendMessage(`🪙 flipped a coin → **${result}** ${emoji}`);
+    onSendMessage(`[coin:${Math.random() < 0.5 ? "Heads" : "Tails"}]`);
     onClose();
   }
 
@@ -152,19 +146,19 @@ export default function EntertainmentMenu({ onSendMessage, onTriggerConfetti, is
     const question = prompt("Ask the Magic 8-Ball a question:");
     if (!question?.trim()) return;
     const response = EIGHT_BALL_RESPONSES[Math.floor(Math.random() * EIGHT_BALL_RESPONSES.length)];
-    onSendMessage(`🎱 asked: _"${question.trim()}"_\n**${response}**`);
+    onSendMessage(`[8ball:${question.trim()}|${response}]`);
     onClose();
   }
 
   function trivia() {
     const t = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
-    onSendMessage(`🧠 **Trivia Time!**\n${t.q}\n||Answer: ${t.a}||`);
+    onSendMessage(`[trivia:${t.q}|${t.a}]`);
     onClose();
   }
 
   function confetti() {
     onTriggerConfetti();
-    onSendMessage("🎉 **threw confetti!** 🎊");
+    onSendMessage("[confetti]");
     onClose();
   }
 

@@ -8,6 +8,7 @@ import Avatar from "@/components/Avatar";
 import LinkPreview from "@/components/LinkPreview";
 import AudioPlayer from "@/components/AudioPlayer";
 import PollDisplay from "@/components/PollDisplay";
+import EntertainmentMessageCard, { detectFunMessage } from "@/components/EntertainmentMessage";
 
 interface MessageProps {
   message: MessageType;
@@ -230,10 +231,11 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
   const grouped = groupReactions(message.reactions || []);
   const hasMedia = detectMedia(message.content).type !== null;
   const isPoll = /^\[poll:[a-f0-9-]+\]$/.test(message.content.trim());
+  const funData = detectFunMessage(message.content.trim());
   const stickerMatch = message.content.trim().match(/^\[sticker:(.+)\]$/);
   const stickerUrl = stickerMatch?.[1] || null;
-  const emojiOnly = !hasMedia && !isPoll && !stickerUrl && isEmojiOnly(message.content);
-  const firstUrl = !hasMedia && !isPoll && !stickerUrl && !emojiOnly ? extractFirstUrl(message.content) : null;
+  const emojiOnly = !hasMedia && !isPoll && !funData && !stickerUrl && isEmojiOnly(message.content);
+  const firstUrl = !hasMedia && !isPoll && !funData && !stickerUrl && !emojiOnly ? extractFirstUrl(message.content) : null;
   const canDelete = isOwn || isAdmin;
   const canEdit = isOwn;
 
@@ -424,6 +426,8 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           </div>
         ) : isPoll && pollData ? (
           <PollDisplay poll={pollData} username={username} />
+        ) : funData ? (
+          <EntertainmentMessageCard data={funData} createdAt={message.created_at} />
         ) : hasMedia ? (
           <MediaContent content={message.content} onOpenLightbox={onOpenLightbox} />
         ) : stickerUrl ? (

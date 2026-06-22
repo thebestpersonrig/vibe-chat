@@ -582,21 +582,16 @@ export default function ChatPage() {
         const sides = diceMatch ? Math.min(parseInt(diceMatch[2]), 100) : 6;
         const results: number[] = [];
         for (let i = 0; i < count; i++) results.push(Math.floor(Math.random() * sides) + 1);
-        const total = results.reduce((a, b) => a + b, 0);
-        content = count > 1
-          ? `🎲 rolled **${count}d${sides}** → [${results.join(", ")}] = **${total}**`
-          : `🎲 rolled **1d${sides}** → **${results[0]}**`;
+        content = `[dice:${count}:${sides}:${results.join(",")}]`;
       } else if (content === "/flip" || content === "/coin") {
-        const result = Math.random() < 0.5 ? "Heads" : "Tails";
-        content = `🪙 flipped a coin → **${result}** ${result === "Heads" ? "👑" : "🌙"}`;
+        content = `[coin:${Math.random() < 0.5 ? "Heads" : "Tails"}]`;
       } else if (content.startsWith("/8ball")) {
-        const question = content.slice(6).trim();
+        const question = content.slice(6).trim() || "Will fortune smile on me?";
         const responses = ["It is certain ✨","Without a doubt 💫","Yes, definitely! 🎯","You may rely on it 🌟","Most likely 🔮","Outlook good 🌈","Signs point to yes 🪧","Reply hazy, try again 🌫️","Ask again later ⏳","Better not tell you now 🤐","Cannot predict now 🎱","Don't count on it 👎","My reply is no ❌","Very doubtful 🤔"];
-        const response = responses[Math.floor(Math.random() * responses.length)];
-        content = question ? `🎱 asked: _"${question}"_\n**${response}**` : `🎱 **${response}**`;
+        content = `[8ball:${question}|${responses[Math.floor(Math.random() * responses.length)]}]`;
       } else if (content === "/confetti") {
         triggerConfetti();
-        content = "🎉 **threw confetti!** 🎊";
+        content = "[confetti]";
       } else if (content === "/trivia") {
         const questions = [
           { q: "What planet is known as the Red Planet?", a: "Mars" },
@@ -611,7 +606,7 @@ export default function ChatPage() {
           { q: "Who painted the Mona Lisa?", a: "Leonardo da Vinci" },
         ];
         const t = questions[Math.floor(Math.random() * questions.length)];
-        content = `🧠 **Trivia Time!**\n${t.q}\n||Answer: ${t.a}||`;
+        content = `[trivia:${t.q}|${t.a}]`;
       } else if (content === "/gif" || content === "/giphy") {
         setShowGifPicker(true);
         setNewMessage("");
