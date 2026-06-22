@@ -591,7 +591,7 @@ export default function ChatPage() {
         content = `[8ball:${question}|${responses[Math.floor(Math.random() * responses.length)]}]`;
       } else if (content === "/confetti") {
         triggerConfetti();
-        content = "[confetti]";
+        content = "🎉 **threw confetti!** 🎊";
       } else if (content === "/trivia") {
         const questions = [
           { q: "What planet is known as the Red Planet?", a: "Mars" },

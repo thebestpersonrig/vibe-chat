@@ -9,9 +9,7 @@ interface DiceData { type: "dice"; count: number; sides: number; results: number
 interface CoinData { type: "coin"; result: "Heads" | "Tails" }
 interface EightBallData { type: "8ball"; question: string; response: string }
 interface TriviaData { type: "trivia"; question: string; answer: string }
-interface ConfettiData { type: "confetti" }
-
-export type FunData = DiceData | CoinData | EightBallData | TriviaData | ConfettiData;
+export type FunData = DiceData | CoinData | EightBallData | TriviaData;
 
 export function detectFunMessage(content: string): FunData | null {
   const dice = content.match(/^\[dice:(\d+):(\d+):([\d,]+)\]$/);
@@ -26,8 +24,6 @@ export function detectFunMessage(content: string): FunData | null {
 
   const trivia = content.match(/^\[trivia:([^|]+)\|(.+)\]$/);
   if (trivia) return { type: "trivia", question: trivia[1], answer: trivia[2] };
-
-  if (content === "[confetti]") return { type: "confetti" };
 
   return null;
 }
@@ -434,80 +430,6 @@ function TriviaCard({ data, isNew }: { data: TriviaData; isNew: boolean }) {
   );
 }
 
-// ─── Confetti Message ───────────────────────────────────────────
-
-function ConfettiCard({ isNew }: { isNew: boolean }) {
-  const colors = ["#8B5CF6", "#EC4899", "#3B82F6", "#10B981", "#F59E0B", "#EF4444"];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="my-1 max-w-[200px]"
-    >
-      <div className="rounded-2xl overflow-hidden border border-pink-500/20 bg-gradient-to-br from-pink-500/10 via-surface/80 to-purple-500/5 relative">
-        {/* Mini confetti particles inside the card */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {isNew && Array.from({ length: 20 }).map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-1.5 h-1.5 rounded-full"
-              style={{
-                backgroundColor: colors[i % colors.length],
-                left: `${10 + Math.random() * 80}%`,
-                top: "-5%",
-              }}
-              animate={{
-                y: [0, 120 + Math.random() * 40],
-                x: [(Math.random() - 0.5) * 30, (Math.random() - 0.5) * 50],
-                rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
-                opacity: [1, 1, 0],
-              }}
-              transition={{
-                duration: 1.5 + Math.random(),
-                delay: Math.random() * 0.5,
-                ease: "easeOut",
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="px-3.5 py-4 text-center relative z-10">
-          <motion.div
-            className="flex justify-center gap-1 mb-1"
-            initial={isNew ? { scale: 0 } : { scale: 1 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          >
-            {["🎉", "✨", "🎊"].map((e, i) => (
-              <motion.span
-                key={e}
-                className="text-2xl"
-                animate={isNew ? {
-                  y: [0, -15, 0],
-                  rotate: [0, i % 2 === 0 ? 20 : -20, 0],
-                  scale: [1, 1.3, 1],
-                } : {}}
-                transition={{ delay: i * 0.1, duration: 0.6, ease: "easeOut" }}
-              >
-                {e}
-              </motion.span>
-            ))}
-          </motion.div>
-          <motion.span
-            className="text-xs font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent"
-            initial={isNew ? { opacity: 0, y: 5 } : { opacity: 1, y: 0 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: isNew ? 0.3 : 0 }}
-          >
-            threw confetti!
-          </motion.span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Main Export ─────────────────────────────────────────────────
 
 export default function EntertainmentMessageCard({ data, createdAt }: { data: FunData; createdAt: string }) {
@@ -518,6 +440,5 @@ export default function EntertainmentMessageCard({ data, createdAt }: { data: Fu
     case "coin": return <CoinFlipCard data={data} isNew={isNew} />;
     case "8ball": return <EightBallCard data={data} isNew={isNew} />;
     case "trivia": return <TriviaCard data={data} isNew={isNew} />;
-    case "confetti": return <ConfettiCard isNew={isNew} />;
   }
 }

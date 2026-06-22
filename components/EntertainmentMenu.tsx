@@ -158,7 +158,7 @@ export default function EntertainmentMenu({ onSendMessage, onTriggerConfetti, is
 
   function confetti() {
     onTriggerConfetti();
-    onSendMessage("[confetti]");
+    onSendMessage("🎉 **threw confetti!** 🎊");
     onClose();
   }
 
