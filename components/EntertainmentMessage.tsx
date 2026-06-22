@@ -432,8 +432,16 @@ function TriviaCard({ data, isNew }: { data: TriviaData; isNew: boolean }) {
 
 // ─── Main Export ─────────────────────────────────────────────────
 
+const animatedMessages = new Set<string>();
+
 export default function EntertainmentMessageCard({ data, createdAt }: { data: FunData; createdAt: string }) {
-  const isNew = Date.now() - new Date(createdAt).getTime() < 8000;
+  const key = `${data.type}:${createdAt}`;
+  const recent = Date.now() - new Date(createdAt).getTime() < 8000;
+  const isNew = recent && !animatedMessages.has(key);
+
+  useEffect(() => {
+    if (recent) animatedMessages.add(key);
+  }, [key, recent]);
 
   switch (data.type) {
     case "dice": return <DiceRollCard data={data} isNew={isNew} />;
