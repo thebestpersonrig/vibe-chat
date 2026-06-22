@@ -18,6 +18,8 @@ import UserProfileCard from "@/components/UserProfileCard";
 import PollCreator from "@/components/PollCreator";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import StickerPicker from "@/components/StickerPicker";
+import EntertainmentMenu from "@/components/EntertainmentMenu";
+import ConfettiEffect from "@/components/ConfettiEffect";
 import { getBrowserFingerprint } from "@/lib/fingerprint";
 
 const MAX_UPLOAD_MB = 10;
@@ -69,6 +71,8 @@ export default function ChatPage() {
   const [mutedRooms, setMutedRooms] = useState<string[]>([]);
   const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
   const [readReceipts, setReadReceipts] = useState<Record<string, string[]>>({});
+  const [showEntertainment, setShowEntertainment] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -419,6 +423,9 @@ export default function ChatPage() {
         setTypingUsers((prev) => prev.includes(p.username) ? prev : [...prev, p.username]);
         setTimeout(() => setTypingUsers((prev) => prev.filter((u) => u !== p.username)), 3000);
       })
+      .on("broadcast", { event: "confetti" }, () => {
+        setShowConfetti(true);
+      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({ username, avatar_color: avatarColor, avatar_url: avatarUrl, online_at: new Date().toISOString() });
@@ -568,6 +575,43 @@ export default function ChatPage() {
         content = text ? `${text} ┬─┬ノ( º _ ºノ)` : "┬─┬ノ( º _ ºノ)";
       } else if (content.startsWith("/me ")) {
         content = `_${content.slice(4).trim()}_`;
+      } else if (content.startsWith("/roll")) {
+        const arg = content.slice(5).trim();
+        const diceMatch = arg.match(/^(\d+)?d(\d+)$/i);
+        const count = diceMatch ? Math.min(parseInt(diceMatch[1] || "1"), 20) : 1;
+        const sides = diceMatch ? Math.min(parseInt(diceMatch[2]), 100) : 6;
+        const results: number[] = [];
+        for (let i = 0; i < count; i++) results.push(Math.floor(Math.random() * sides) + 1);
+        const total = results.reduce((a, b) => a + b, 0);
+        content = count > 1
+          ? `🎲 rolled **${count}d${sides}** → [${results.join(", ")}] = **${total}**`
+          : `🎲 rolled **1d${sides}** → **${results[0]}**`;
+      } else if (content === "/flip" || content === "/coin") {
+        const result = Math.random() < 0.5 ? "Heads" : "Tails";
+        content = `🪙 flipped a coin → **${result}** ${result === "Heads" ? "👑" : "🌙"}`;
+      } else if (content.startsWith("/8ball")) {
+        const question = content.slice(6).trim();
+        const responses = ["It is certain ✨","Without a doubt 💫","Yes, definitely! 🎯","You may rely on it 🌟","Most likely 🔮","Outlook good 🌈","Signs point to yes 🪧","Reply hazy, try again 🌫️","Ask again later ⏳","Better not tell you now 🤐","Cannot predict now 🎱","Don't count on it 👎","My reply is no ❌","Very doubtful 🤔"];
+        const response = responses[Math.floor(Math.random() * responses.length)];
+        content = question ? `🎱 asked: _"${question}"_\n**${response}**` : `🎱 **${response}**`;
+      } else if (content === "/confetti") {
+        triggerConfetti();
+        content = "🎉 **threw confetti!** 🎊";
+      } else if (content === "/trivia") {
+        const questions = [
+          { q: "What planet is known as the Red Planet?", a: "Mars" },
+          { q: "What is the smallest country in the world?", a: "Vatican City" },
+          { q: "How many bones are in the adult human body?", a: "206" },
+          { q: "What element has the chemical symbol 'Au'?", a: "Gold" },
+          { q: "What is the largest ocean on Earth?", a: "Pacific Ocean" },
+          { q: "In what year did the Titanic sink?", a: "1912" },
+          { q: "What is the hardest natural substance?", a: "Diamond" },
+          { q: "How many hearts does an octopus have?", a: "Three" },
+          { q: "What is the capital of Australia?", a: "Canberra" },
+          { q: "Who painted the Mona Lisa?", a: "Leonardo da Vinci" },
+        ];
+        const t = questions[Math.floor(Math.random() * questions.length)];
+        content = `🧠 **Trivia Time!**\n${t.q}\n||Answer: ${t.a}||`;
       } else if (content === "/gif" || content === "/giphy") {
         setShowGifPicker(true);
         setNewMessage("");
@@ -810,6 +854,39 @@ export default function ChatPage() {
       body: JSON.stringify({ action: "change-password", username, currentPassword: currentPw, newPassword: newPw }),
     });
     return res.ok;
+  }
+
+  async function sendEntertainmentMessage(content: string) {
+    if (!activeRoom || isMuted() || spamCooldown) return;
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: tempId,
+      room_id: activeRoom.id,
+      username,
+      avatar_color: avatarColor,
+      avatar_url: avatarUrl,
+      content,
+      created_at: new Date().toISOString(),
+      reactions: [],
+    }]);
+    if (isNearBottomRef.current) setTimeout(() => scrollToBottom(), 20);
+
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ room_id: activeRoom.id, username, avatar_color: avatarColor, avatar_url: avatarUrl, content })
+      .select()
+      .single();
+
+    if (data) {
+      setMessages((prev) => prev.map((m) => m.id === tempId ? { ...data, reactions: [] } : m));
+    } else if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
+  }
+
+  function triggerConfetti() {
+    setShowConfetti(true);
+    channelRef.current?.send({ type: "broadcast", event: "confetti", payload: {} });
   }
 
   function broadcastTyping() {
@@ -1193,6 +1270,9 @@ export default function ChatPage() {
     <div className="h-dvh flex bg-background overflow-hidden relative">
       <div className="aurora-bg" />
       <div className="noise-overlay" />
+      <AnimatePresence>
+        {showConfetti && <ConfettiEffect onDone={() => setShowConfetti(false)} />}
+      </AnimatePresence>
 
       <Sidebar rooms={rooms} activeRoomId={activeRoom?.id ?? null} onSelectRoom={handleSelectRoom} username={username} avatarColor={avatarColor} avatarUrl={avatarUrl} isAdmin={isAdmin} allUsers={allUsers} onAvatarChange={handleAvatarChange} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onDeleteRoom={handleDeleteRoom} onStartDm={handleStartDm} onStartGroupDm={handleStartGroupDm} onOpenAdminPanel={() => setShowAdminPanel(true)} unreadCounts={unreadCounts} dmNames={dmNames} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} soundEnabled={soundEnabled} onToggleSound={handleToggleSound} onPasswordChange={handlePasswordChange} onSetStatus={handleSetStatus} mutedRooms={mutedRooms} onToggleMuteRoom={handleToggleMuteRoom} onBioChange={handleBioChange} onBannerChange={handleBannerChange} />
 
@@ -1506,9 +1586,10 @@ export default function ChatPage() {
                     <AnimatePresence>{showStickerPicker && <StickerPicker onSelect={(sticker) => { sendMediaMessage(sticker); setShowStickerPicker(false); }} onClose={() => setShowStickerPicker(false)} customStickers={stickers} />}</AnimatePresence>
                     <AnimatePresence>{showPollCreator && <PollCreator onSubmit={handleCreatePoll} onCancel={() => setShowPollCreator(false)} />}</AnimatePresence>
 
+
                     <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml" onChange={handleFileUpload} className="hidden" />
                     <motion.button
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => { fileInputRef.current?.click(); setShowEntertainment(false); }}
                       disabled={uploading}
                       whileHover={{ scale: 1.15, rotate: 5 }}
                       whileTap={{ scale: 0.85 }}
@@ -1519,7 +1600,7 @@ export default function ChatPage() {
                       {uploading ? "⏳" : "📷"}
                     </motion.button>
                     <motion.button
-                      onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); setShowStickerPicker(false); setShowPollCreator(false); }}
+                      onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); setShowStickerPicker(false); setShowPollCreator(false); setShowEntertainment(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-[11px] shrink-0 font-black px-2.5 py-1.5 rounded-xl transition-all cursor-pointer tracking-wide ${showGifPicker ? "bg-accent/20 text-accent ring-1 ring-accent/30" : "text-muted hover:text-accent hover:bg-accent/10"}`}
@@ -1528,7 +1609,7 @@ export default function ChatPage() {
                       GIF
                     </motion.button>
                     <motion.button
-                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); setShowStickerPicker(false); setShowPollCreator(false); }}
+                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); setShowStickerPicker(false); setShowPollCreator(false); setShowEntertainment(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showEmojiPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
@@ -1537,7 +1618,7 @@ export default function ChatPage() {
                       😊
                     </motion.button>
                     <motion.button
-                      onClick={() => { setShowStickerPicker(!showStickerPicker); setShowGifPicker(false); setShowEmojiPicker(false); setShowPollCreator(false); }}
+                      onClick={() => { setShowStickerPicker(!showStickerPicker); setShowGifPicker(false); setShowEmojiPicker(false); setShowPollCreator(false); setShowEntertainment(false); }}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className={`text-lg shrink-0 p-1.5 rounded-xl transition-all cursor-pointer ${showStickerPicker ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover opacity-60 hover:opacity-100"}`}
@@ -1545,6 +1626,13 @@ export default function ChatPage() {
                     >
                       🌟
                     </motion.button>
+                    <EntertainmentMenu
+                      isOpen={showEntertainment}
+                      onToggle={() => { setShowEntertainment(!showEntertainment); setShowGifPicker(false); setShowEmojiPicker(false); setShowStickerPicker(false); setShowPollCreator(false); }}
+                      onClose={() => setShowEntertainment(false)}
+                      onSendMessage={(content) => { sendEntertainmentMessage(content); }}
+                      onTriggerConfetti={triggerConfetti}
+                    />
                     {showVoiceRecorder ? (
                       <VoiceRecorder onSend={handleVoiceMessage} onCancel={() => setShowVoiceRecorder(false)} />
                     ) : (

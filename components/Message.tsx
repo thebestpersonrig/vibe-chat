@@ -58,6 +58,18 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function SpoilerText({ text }: { text: string }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span
+      onClick={() => setRevealed(true)}
+      className={`rounded px-1 py-0.5 cursor-pointer transition-all duration-300 inline-block ${revealed ? "bg-surface/60 text-foreground" : "bg-muted/40 text-transparent select-none hover:bg-muted/50"}`}
+    >
+      {text}
+    </span>
+  );
+}
+
 function isEmojiOnly(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > 20) return false;
@@ -79,6 +91,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
   parts.push("_[^_]+_");
   parts.push("~~[^~]+~~");
   parts.push("`[^`]+`");
+  parts.push("\\|\\|[^|]+\\|\\|");
 
   if (customEmojis && customEmojis.length > 0) {
     parts.push(":(?:" + customEmojis.map((e) => escapeRegex(e.name)).join("|") + "):");
@@ -102,6 +115,7 @@ function renderTextContent(content: string, currentUser: string, allUsernames?: 
     if (/^_[^_]+_$/.test(token)) return <em key={i} className="italic">{token.slice(1, -1)}</em>;
     if (/^~~[^~]+~~$/.test(token)) return <del key={i} className="line-through text-muted/60">{token.slice(2, -2)}</del>;
     if (/^`[^`]+`$/.test(token)) return <code key={i} className="bg-surface/80 text-pink px-1.5 py-0.5 rounded text-xs font-mono border border-border">{token.slice(1, -1)}</code>;
+    if (/^\|\|[^|]+\|\|$/.test(token)) return <SpoilerText key={i} text={token.slice(2, -2)} />;
     if (/^https?:\/\//.test(token)) {
       return <a key={i} href={token} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-blue hover:underline break-all transition-colors">{token}</a>;
     }
@@ -418,7 +432,7 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
           <p className="text-5xl leading-tight py-1 sticker-pop">{message.content.trim()}</p>
         ) : (
           <>
-            <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55]">{renderTextContent(message.content, username, allUsernames, customEmojis)}</p>
+            <p className="text-[13.5px] text-foreground/90 break-words leading-[1.55] whitespace-pre-wrap">{renderTextContent(message.content, username, allUsernames, customEmojis)}</p>
             {firstUrl && <LinkPreview url={firstUrl} />}
           </>
         )}
