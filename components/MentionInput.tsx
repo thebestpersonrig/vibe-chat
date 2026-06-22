@@ -14,6 +14,7 @@ interface MentionInputProps {
   onlineUsers: UserPresence[];
   allUsers: User[];
   currentUser: string;
+  roomId?: string;
 }
 
 export default function MentionInput({
@@ -25,6 +26,7 @@ export default function MentionInput({
   onlineUsers,
   allUsers,
   currentUser,
+  roomId,
 }: MentionInputProps) {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -116,6 +118,10 @@ export default function MentionInput({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showMentions]);
+
+  useEffect(() => {
+    if (roomId) inputRef.current?.focus();
+  }, [roomId]);
 
   return (
     <div className="relative flex-1">

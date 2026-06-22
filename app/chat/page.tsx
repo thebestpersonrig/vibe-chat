@@ -73,6 +73,7 @@ export default function ChatPage() {
   const [readReceipts, setReadReceipts] = useState<Record<string, string[]>>({});
   const [showEntertainment, setShowEntertainment] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "reconnecting">("connected");
   const [, forceUpdate] = useState(0);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +93,23 @@ export default function ChatPage() {
   soundEnabledRef.current = soundEnabled;
   messagesRef.current = messages;
   mutedRoomsRef.current = mutedRooms;
+
+  // Online/offline detection — reconnect when connection restores
+  useEffect(() => {
+    function handleOffline() { setConnectionStatus("disconnected"); }
+    function handleOnline() {
+      setConnectionStatus("reconnecting");
+      if (activeRoomRef.current) {
+        loadMessages(activeRoomRef.current.id);
+        loadReadReceipts(activeRoomRef.current.id);
+      }
+      loadAllUsers();
+      setTimeout(() => setConnectionStatus("connected"), 2000);
+    }
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => { window.removeEventListener("offline", handleOffline); window.removeEventListener("online", handleOnline); };
+  }, []);
 
   // Tab title + favicon badge with unread count
   useEffect(() => {
@@ -337,6 +355,7 @@ export default function ChatPage() {
     setReplyingTo(null);
     setSelectMode(false);
     setSelectedMsgs(new Set());
+    lastMarkedReadRef.current = new Set();
     setShowPollCreator(false);
     setShowVoiceRecorder(false);
     const lastRead = localStorage.getItem(`rpb-lastread-${activeRoom.id}`);
@@ -505,6 +524,8 @@ export default function ChatPage() {
     messagesContainerRef.current?.scrollTo({ top: messagesContainerRef.current.scrollHeight, behavior: instant ? "instant" : "smooth" });
   }
 
+  const lastMarkedReadRef = useRef<Set<string>>(new Set());
+
   function handleScroll() {
     const el = messagesContainerRef.current;
     if (!el) return;
@@ -520,8 +541,12 @@ export default function ChatPage() {
         if (!lastMsg.id.startsWith("temp-")) {
           localStorage.setItem(`rpb-lastread-${room.id}`, lastMsg.id);
         }
-        const unread = msgs.filter((m) => m.username !== username && !m.id.startsWith("temp-"));
-        if (unread.length > 0) markMessagesRead(room.id, unread.map((m) => m.id));
+        const unread = msgs.filter((m) => m.username !== username && !m.id.startsWith("temp-") && !lastMarkedReadRef.current.has(m.id));
+        if (unread.length > 0) {
+          const ids = unread.map((m) => m.id);
+          for (const id of ids) lastMarkedReadRef.current.add(id);
+          markMessagesRead(room.id, ids);
+        }
       }
     }
   }
@@ -1351,6 +1376,31 @@ export default function ChatPage() {
           </div>
         </motion.div>
 
+        {/* Connection status banner */}
+        <AnimatePresence>
+          {connectionStatus !== "connected" && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className={`overflow-hidden border-b ${connectionStatus === "disconnected" ? "border-pink/20 bg-pink/5" : "border-amber-500/20 bg-amber-500/5"}`}
+            >
+              <div className="px-4 py-2 flex items-center justify-center gap-2">
+                <motion.span
+                  className="text-sm"
+                  animate={connectionStatus === "reconnecting" ? { rotate: 360 } : {}}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                >
+                  {connectionStatus === "disconnected" ? "⚠️" : "🔄"}
+                </motion.span>
+                <span className={`text-xs font-medium ${connectionStatus === "disconnected" ? "text-pink/80" : "text-amber-400/80"}`}>
+                  {connectionStatus === "disconnected" ? "You're offline — messages may not be delivered" : "Reconnecting..."}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Notification permission banner */}
         <AnimatePresence>
           {showNotifBanner && (
@@ -1641,7 +1691,7 @@ export default function ChatPage() {
                         >
                           🎤
                         </motion.button>
-                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} />
+                        <MentionInput value={newMessage} onChange={setNewMessage} onSubmit={sendMessage} onTyping={broadcastTyping} placeholder={activeRoom.type === "dm" ? `Message ${activeRoomDisplayName}...` : `Message #${activeRoomDisplayName}...`} onlineUsers={onlineUsers} allUsers={mentionableUsers} currentUser={username} roomId={activeRoom.id} />
                         <motion.button
                           onClick={sendMessage}
                           disabled={!newMessage.trim()}

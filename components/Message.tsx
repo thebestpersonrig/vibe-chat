@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Message as MessageType, Reaction, REACTION_EMOJIS, detectMedia, Poll, CustomEmoji } from "@/lib/types";
@@ -215,7 +215,7 @@ function MediaContent({ content, onOpenLightbox }: { content: string; onOpenLigh
   return null;
 }
 
-export default function Message({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames, selectMode, isSelected, onToggleSelect, readByAll, readByNames }: MessageProps) {
+function MessageInner({ message, isOwn, username, isGrouped, isAdmin, senderTitle, replyMessage, onReply, onEdit, onOpenProfile, onOpenLightbox, onScrollToMessage, isMuted, pollData, customEmojis, allUsernames, selectMode, isSelected, onToggleSelect, readByAll, readByNames }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -624,3 +624,18 @@ export default function Message({ message, isOwn, username, isGrouped, isAdmin, 
     </motion.div>
   );
 }
+
+const Message = memo(MessageInner, (prev, next) => {
+  if (prev.message !== next.message) return false;
+  if (prev.isGrouped !== next.isGrouped) return false;
+  if (prev.selectMode !== next.selectMode) return false;
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.readByAll !== next.readByAll) return false;
+  if (prev.pollData !== next.pollData) return false;
+  if (prev.isMuted !== next.isMuted) return false;
+  if (prev.senderTitle !== next.senderTitle) return false;
+  if (prev.replyMessage !== next.replyMessage) return false;
+  return true;
+});
+
+export default Message;
